@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import List
 from app.database import get_db
-from app.models import Session as SessionModel, SessionExercise, Exercise, User
+from app.models import WorkoutSession, SessionExercise, Exercise, User
 from app.schemas import (
     SessionCreate,
     SessionUpdate,
@@ -25,8 +25,8 @@ def get_user_sessions(
     """
     Get all sessions for the current user.
     """
-    sessions = db.query(SessionModel).filter(
-        SessionModel.user_id == current_user.id
+    sessions = db.query(WorkoutSession).filter(
+        WorkoutSession.user_id == current_user.id
     ).offset(skip).limit(limit).all()
     
     result = []
@@ -74,9 +74,9 @@ def get_session(
     """
     Get a specific session by ID.
     """
-    session = db.query(SessionModel).filter(
-        SessionModel.id == session_id,
-        SessionModel.user_id == current_user.id
+    session = db.query(WorkoutSession).filter(
+        WorkoutSession.id == session_id,
+        WorkoutSession.user_id == current_user.id
     ).first()
     
     if not session:
@@ -126,24 +126,23 @@ def create_session(
     Create a new workout session.
     """
     # Create session
-    db_session = SessionModel(
+    db_session = WorkoutSession(
         user_id=current_user.id,
         name=session.name,
         description=session.description
     )
     db.add(db_session)
-    db.commit()
-    db.refresh(db_session)
+    db.flush()  # Get the session ID without committing
     
     # Add exercises to session
     exercises_data = []
+    session_exercises_to_add = []
+    
     for exercise_data in session.exercises:
         # Verify exercise exists
         exercise = db.query(Exercise).filter(Exercise.id == exercise_data.exercise_id).first()
         if not exercise:
-            # Rollback and raise error
-            db.delete(db_session)
-            db.commit()
+            db.rollback()
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Exercise with id {exercise_data.exercise_id} not found"
@@ -151,13 +150,12 @@ def create_session(
         
         # Validate at least one objective is set
         if not any([
-            exercise_data.weight_kg,
-            exercise_data.calories,
-            exercise_data.time_minutes,
-            exercise_data.repetitions
+            exercise_data.weight_kg is not None,
+            exercise_data.calories is not None,
+            exercise_data.time_minutes is not None,
+            exercise_data.repetitions is not None
         ]):
-            db.delete(db_session)
-            db.commit()
+            db.rollback()
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="At least one objective (weight, calories, time, or repetitions) must be set"
@@ -172,21 +170,29 @@ def create_session(
             repetitions=exercise_data.repetitions,
             notes=exercise_data.notes
         )
-        db.add(db_session_exercise)
-        db.commit()
-        db.refresh(db_session_exercise)
-        
-        exercises_data.append(SessionExerciseResponse(
-            id=db_session_exercise.id,
-            session_id=db_session_exercise.session_id,
-            exercise_id=db_session_exercise.exercise_id,
+        session_exercises_to_add.append(db_session_exercise)
+    
+    # Add all exercises in bulk
+    db.add_all(session_exercises_to_add)
+    db.commit()
+    db.refresh(db_session)
+    
+    # Get the actual session exercises with IDs
+    final_exercises = []
+    for se in session_exercises_to_add:
+        db.refresh(se)
+        exercise = db.query(Exercise).filter(Exercise.id == se.exercise_id).first()
+        final_exercises.append(SessionExerciseResponse(
+            id=se.id,
+            session_id=se.session_id,
+            exercise_id=se.exercise_id,
             exercise_name=exercise.name,
-            weight_kg=db_session_exercise.weight_kg,
-            calories=db_session_exercise.calories,
-            time_minutes=db_session_exercise.time_minutes,
-            repetitions=db_session_exercise.repetitions,
-            notes=db_session_exercise.notes,
-            created_at=db_session_exercise.created_at
+            weight_kg=se.weight_kg,
+            calories=se.calories,
+            time_minutes=se.time_minutes,
+            repetitions=se.repetitions,
+            notes=se.notes,
+            created_at=se.created_at
         ))
     
     return SessionResponse(
@@ -196,7 +202,7 @@ def create_session(
         description=db_session.description,
         created_at=db_session.created_at,
         updated_at=db_session.updated_at,
-        exercises=exercises_data
+        exercises=final_exercises
     )
 
 @router.put("/{session_id}", response_model=SessionResponse)
@@ -210,9 +216,9 @@ def update_session(
     Update a session's basic information (name, description).
     Use separate endpoints to manage exercises within the session.
     """
-    db_session = db.query(SessionModel).filter(
-        SessionModel.id == session_id,
-        SessionModel.user_id == current_user.id
+    db_session = db.query(WorkoutSession).filter(
+        WorkoutSession.id == session_id,
+        WorkoutSession.user_id == current_user.id
     ).first()
     
     if not db_session:
@@ -269,9 +275,9 @@ def delete_session(
     """
     Delete a session and all its associated exercises.
     """
-    db_session = db.query(SessionModel).filter(
-        SessionModel.id == session_id,
-        SessionModel.user_id == current_user.id
+    db_session = db.query(WorkoutSession).filter(
+        WorkoutSession.id == session_id,
+        WorkoutSession.user_id == current_user.id
     ).first()
     
     if not db_session:
@@ -295,9 +301,9 @@ def add_exercise_to_session(
     Add an exercise to a session with objectives.
     """
     # Verify session exists and belongs to user
-    db_session = db.query(SessionModel).filter(
-        SessionModel.id == session_id,
-        SessionModel.user_id == current_user.id
+    db_session = db.query(WorkoutSession).filter(
+        WorkoutSession.id == session_id,
+        WorkoutSession.user_id == current_user.id
     ).first()
     
     if not db_session:
@@ -316,10 +322,10 @@ def add_exercise_to_session(
     
     # Validate at least one objective is set
     if not any([
-        exercise_data.weight_kg,
-        exercise_data.calories,
-        exercise_data.time_minutes,
-        exercise_data.repetitions
+        exercise_data.weight_kg is not None,
+        exercise_data.calories is not None,
+        exercise_data.time_minutes is not None,
+        exercise_data.repetitions is not None
     ]):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -364,9 +370,9 @@ def update_session_exercise(
     Update objectives for an exercise in a session.
     """
     # Verify session exists and belongs to user
-    db_session = db.query(SessionModel).filter(
-        SessionModel.id == session_id,
-        SessionModel.user_id == current_user.id
+    db_session = db.query(WorkoutSession).filter(
+        WorkoutSession.id == session_id,
+        WorkoutSession.user_id == current_user.id
     ).first()
     
     if not db_session:
@@ -393,10 +399,10 @@ def update_session_exercise(
     
     # Validate at least one objective is set
     if not any([
-        db_session_exercise.weight_kg,
-        db_session_exercise.calories,
-        db_session_exercise.time_minutes,
-        db_session_exercise.repetitions
+        db_session_exercise.weight_kg is not None,
+        db_session_exercise.calories is not None,
+        db_session_exercise.time_minutes is not None,
+        db_session_exercise.repetitions is not None
     ]):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -432,9 +438,9 @@ def remove_exercise_from_session(
     Remove an exercise from a session.
     """
     # Verify session exists and belongs to user
-    db_session = db.query(SessionModel).filter(
-        SessionModel.id == session_id,
-        SessionModel.user_id == current_user.id
+    db_session = db.query(WorkoutSession).filter(
+        WorkoutSession.id == session_id,
+        WorkoutSession.user_id == current_user.id
     ).first()
     
     if not db_session:

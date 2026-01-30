@@ -1,23 +1,7 @@
-from sqlalchemy import Column, Integer, String, Boolean, Text, ForeignKey, Float, DateTime, Table
+from sqlalchemy import Column, Integer, String, Boolean, Text, ForeignKey, Float, DateTime
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.database import Base
-
-# Association table for exercises and affected muscles
-exercise_muscles = Table(
-    'exercise_muscles',
-    Base.metadata,
-    Column('exercise_id', Integer, ForeignKey('exercises.id')),
-    Column('muscle_name', String(100))
-)
-
-# Association table for exercises and accessories
-exercise_accessories = Table(
-    'exercise_accessories',
-    Base.metadata,
-    Column('exercise_id', Integer, ForeignKey('exercises.id')),
-    Column('accessory_name', String(100))
-)
 
 class User(Base):
     __tablename__ = "users"
@@ -29,7 +13,7 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    sessions = relationship("Session", back_populates="user", cascade="all, delete-orphan")
+    sessions = relationship("WorkoutSession", back_populates="user", cascade="all, delete-orphan")
 
 class Exercise(Base):
     __tablename__ = "exercises"
@@ -43,9 +27,9 @@ class Exercise(Base):
     is_static = Column(Boolean, default=False)  # True for static, False for repeated movement
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    session_exercises = relationship("SessionExercise", back_populates="exercise", cascade="all, delete-orphan")
+    session_exercises = relationship("SessionExercise", back_populates="exercise")
 
-class Session(Base):
+class WorkoutSession(Base):
     __tablename__ = "sessions"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -74,20 +58,19 @@ class SessionExercise(Base):
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    session = relationship("Session", back_populates="session_exercises")
+    session = relationship("WorkoutSession", back_populates="session_exercises")
     exercise = relationship("Exercise", back_populates="session_exercises")
 
-# Separate tables for muscles and accessories to allow better querying
 class ExerciseMuscle(Base):
     __tablename__ = "exercise_muscles_detail"
 
     id = Column(Integer, primary_key=True, index=True)
-    exercise_id = Column(Integer, ForeignKey("exercises.id"), nullable=False)
+    exercise_id = Column(Integer, ForeignKey("exercises.id", ondelete="CASCADE"), nullable=False)
     muscle_name = Column(String(100), nullable=False)
 
 class ExerciseAccessory(Base):
     __tablename__ = "exercise_accessories_detail"
 
     id = Column(Integer, primary_key=True, index=True)
-    exercise_id = Column(Integer, ForeignKey("exercises.id"), nullable=False)
+    exercise_id = Column(Integer, ForeignKey("exercises.id", ondelete="CASCADE"), nullable=False)
     accessory_name = Column(String(100), nullable=False)

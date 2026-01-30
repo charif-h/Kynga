@@ -42,12 +42,31 @@ cd Kynga
 pip install -r requirements.txt
 ```
 
-3. Run the application:
+3. Configure environment variables (optional):
+```bash
+cp .env.example .env
+# Edit .env file to set your SECRET_KEY and other configurations
+```
+
+4. Run the application:
 ```bash
 python -m app.main
 ```
 
 The API will be available at `http://localhost:8000`
+
+## Configuration
+
+The application can be configured using environment variables:
+
+- `SECRET_KEY`: Secret key for JWT token signing (required in production)
+- `DATABASE_URL`: Database connection URL (default: `sqlite:///./kynga.db`)
+- `ALLOWED_ORIGINS`: Comma-separated list of allowed CORS origins (default: `*`)
+
+**Important for Production:**
+- Set a strong, random `SECRET_KEY` using: `python -c "import secrets; print(secrets.token_urlsafe(32))"`
+- Configure specific `ALLOWED_ORIGINS` instead of using `*`
+- Use a production-grade database (PostgreSQL, MySQL) instead of SQLite
 
 ## API Documentation
 

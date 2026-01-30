@@ -60,20 +60,20 @@ class ExerciseResponse(ExerciseBase):
 # Session Exercise Schemas
 class SessionExerciseBase(BaseModel):
     exercise_id: int
-    weight_kg: Optional[float] = None
-    calories: Optional[float] = None
-    time_minutes: Optional[float] = None
-    repetitions: Optional[int] = None
+    weight_kg: Optional[float] = Field(None, ge=0)
+    calories: Optional[float] = Field(None, ge=0)
+    time_minutes: Optional[float] = Field(None, ge=0)
+    repetitions: Optional[int] = Field(None, ge=0)
     notes: Optional[str] = None
 
 class SessionExerciseCreate(SessionExerciseBase):
     pass
 
 class SessionExerciseUpdate(BaseModel):
-    weight_kg: Optional[float] = None
-    calories: Optional[float] = None
-    time_minutes: Optional[float] = None
-    repetitions: Optional[int] = None
+    weight_kg: Optional[float] = Field(None, ge=0)
+    calories: Optional[float] = Field(None, ge=0)
+    time_minutes: Optional[float] = Field(None, ge=0)
+    repetitions: Optional[int] = Field(None, ge=0)
     notes: Optional[str] = None
 
 class SessionExerciseResponse(SessionExerciseBase):
