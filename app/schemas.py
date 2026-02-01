@@ -8,11 +8,11 @@ class UserBase(BaseModel):
     email: EmailStr
 
 class UserCreate(UserBase):
-    password: str = Field(..., min_length=6)
+    password: str = Field(..., min_length=6, max_length=72)
 
 class UserLogin(BaseModel):
     username: str
-    password: str
+    password: str = Field(..., max_length=72)
 
 class UserResponse(UserBase):
     id: int
@@ -36,6 +36,11 @@ class ExerciseBase(BaseModel):
     is_static: bool = False
     affected_muscles: List[str] = []
     needed_accessories: List[str] = []
+    has_time: bool = False
+    has_repetitions: bool = False
+    has_weight: bool = False
+    has_distance: bool = False
+    has_calories: bool = False
 
 class ExerciseCreate(ExerciseBase):
     pass
@@ -49,9 +54,47 @@ class ExerciseUpdate(BaseModel):
     is_static: Optional[bool] = None
     affected_muscles: Optional[List[str]] = None
     needed_accessories: Optional[List[str]] = None
+    has_time: Optional[bool] = None
+    has_repetitions: Optional[bool] = None
+    has_weight: Optional[bool] = None
+    has_distance: Optional[bool] = None
+    has_calories: Optional[bool] = None
+
+class ExerciseMediaResponse(BaseModel):
+    id: int
+    media_type: str
+    url: str
+    filename: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
 
 class ExerciseResponse(ExerciseBase):
     id: int
+    created_at: datetime
+    media: List[ExerciseMediaResponse] = []
+    profile_media_id: Optional[int] = None
+    profile_media_url: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+# Exercise Set Schemas
+class ExerciseSetBase(BaseModel):
+    set_number: int = Field(..., ge=1)
+    weight_kg: Optional[float] = Field(None, ge=0)
+    calories: Optional[float] = Field(None, ge=0)
+    time_minutes: Optional[float] = Field(None, ge=0)
+    repetitions: Optional[int] = Field(None, ge=0)
+    distance_km: Optional[float] = Field(None, ge=0)
+
+class ExerciseSetCreate(ExerciseSetBase):
+    pass
+
+class ExerciseSetResponse(ExerciseSetBase):
+    id: int
+    session_exercise_id: int
     created_at: datetime
 
     class Config:
@@ -60,31 +103,27 @@ class ExerciseResponse(ExerciseBase):
 # Session Exercise Schemas
 class SessionExerciseBase(BaseModel):
     exercise_id: int
-    weight_kg: Optional[float] = Field(None, ge=0)
-    calories: Optional[float] = Field(None, ge=0)
-    time_minutes: Optional[float] = Field(None, ge=0)
-    repetitions: Optional[int] = Field(None, ge=0)
     notes: Optional[str] = None
+    sets: List[ExerciseSetBase] = []
 
 class SessionExerciseCreate(SessionExerciseBase):
     pass
 
 class SessionExerciseUpdate(BaseModel):
-    weight_kg: Optional[float] = Field(None, ge=0)
-    calories: Optional[float] = Field(None, ge=0)
-    time_minutes: Optional[float] = Field(None, ge=0)
-    repetitions: Optional[int] = Field(None, ge=0)
     notes: Optional[str] = None
+    sets: Optional[List[ExerciseSetBase]] = None
 
-class SessionExerciseResponse(SessionExerciseBase):
+class SessionExerciseResponse(BaseModel):
     id: int
     session_id: int
-    exercise_name: Optional[str] = None
+    exercise_id: int
+    notes: Optional[str] = None
     created_at: datetime
+    exercise_name: Optional[str] = None
+    sets: List[ExerciseSetResponse] = []
 
     class Config:
         from_attributes = True
-
 # Session Schemas
 class SessionBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)

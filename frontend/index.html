@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kynga - Sports Management</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Login/Register Modal -->
+    <div id="authModal" class="modal">
+        <div class="modal-content">
+            <h2 id="authTitle">Connexion</h2>
+            <form id="authForm">
+                <div id="nameField" style="display: none;">
+                    <label for="name">Nom complet</label>
+                    <input type="text" id="name" placeholder="Votre nom">
+                </div>
+                <div>
+                    <label for="email">Email</label>
+                    <input type="email" id="email" placeholder="votre@email.com" required>
+                </div>
+                <div>
+                    <label for="password">Mot de passe</label>
+                    <input type="password" id="password" placeholder="********" required>
+                </div>
+                <button type="submit" id="authSubmit">Se connecter</button>
+                <p class="toggle-auth">
+                    <span id="toggleText">Pas encore de compte ?</span>
+                    <a href="#" id="toggleAuth">S'inscrire</a>
+                </p>
+            </form>
+        </div>
+    </div>
+
+    <!-- Main App -->
+    <div id="app" style="display: none;">
+        <!-- Navigation -->
+        <nav class="navbar">
+            <div class="nav-brand">
+                <h1>Kynga</h1>
+            </div>
+            <div class="nav-menu">
+                <button class="nav-btn active" data-page="exercises">Exercices</button>
+                <button class="nav-btn" data-page="sessions">Mes Sessions</button>
+                <button class="nav-btn logout-btn">Déconnexion</button>
+            </div>
+        </nav>
+
+        <!-- Exercises Page -->
+        <div id="exercisesPage" class="page active">
+            <div class="page-header">
+                <h2>Bibliothèque d'Exercices</h2>
+                <button class="btn-primary" id="addExerciseBtn">+ Ajouter un exercice</button>
+            </div>
+            <div class="filters">
+                <input type="text" id="searchExercises" placeholder="Rechercher un exercice...">
+                <select id="categoryFilter">
+                    <option value="">Toutes les catégories</option>
+                    <option value="musculation">Musculation</option>
+                    <option value="cardio">Cardio</option>
+                    <option value="yoga">Yoga</option>
+                    <option value="stretching">Stretching</option>
+                </select>
+            </div>
+            <div id="exercisesList" class="cards-grid"></div>
+        </div>
+
+        <!-- Sessions Page -->
+        <div id="sessionsPage" class="page">
+            <div class="page-header">
+                <h2>Mes Sessions d'Entraînement</h2>
+                <button class="btn-primary" id="addSessionBtn">+ Créer une session</button>
+            </div>
+            <div id="sessionsList" class="cards-grid"></div>
+        </div>
+    </div>
+
+    <!-- Exercise Modal -->
+    <div id="exerciseModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2 id="exerciseModalTitle">Ajouter un exercice</h2>
+            <form id="exerciseForm">
+                <div>
+                    <label for="exerciseName">Nom de l'exercice</label>
+                    <input type="text" id="exerciseName" required>
+                </div>
+                <div>
+                    <label for="exerciseDescription">Description</label>
+                    <textarea id="exerciseDescription" rows="4"></textarea>
+                </div>
+                <div>
+                    <label for="exerciseCategory">Catégorie</label>
+                    <select id="exerciseCategory" required>
+                        <option value="musculation">Musculation</option>
+                        <option value="cardio">Cardio</option>
+                        <option value="yoga">Yoga</option>
+                        <option value="stretching">Stretching</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="exerciseMuscles">Muscles ciblés (séparés par des virgules)</label>
+                    <input type="text" id="exerciseMuscles" placeholder="pectoraux, triceps">
+                </div>
+                <div>
+                    <label for="exerciseAccessories">Accessoires nécessaires</label>
+                    <input type="text" id="exerciseAccessories" placeholder="haltères, tapis">
+                </div>
+                <div>
+                    <label for="exerciseMovementType">Type de mouvement</label>
+                    <select id="exerciseMovementType">
+                        <option value="repeated">Mouvement répété</option>
+                        <option value="static">Statique</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Métriques applicables</label>
+                    <div style="display: flex; flex-wrap: wrap; gap: 15px; margin-top: 5px;">
+                        <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                            <input type="checkbox" id="metricTime" style="width: auto;">
+                            <span>Temps</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                            <input type="checkbox" id="metricRepetitions" style="width: auto;">
+                            <span>Répétitions</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                            <input type="checkbox" id="metricWeight" style="width: auto;">
+                            <span>Poids</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                            <input type="checkbox" id="metricDistance" style="width: auto;">
+                            <span>Distance</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                            <input type="checkbox" id="metricCalories" style="width: auto;">
+                            <span>Calories</span>
+                        </label>
+                    </div>
+                </div>
+                <div>
+                    <label for="exerciseImageUrl">URL de l'image/vidéo</label>
+                    <input type="url" id="exerciseImageUrl">
+                </div>
+                <hr style="margin: 20px 0; border: none; border-top: 1px solid #ddd;">
+                <h4>Galerie Médias</h4>
+                <div id="exerciseMediaGallery" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px; margin-bottom: 15px;"></div>
+                <div style="display: flex; gap: 10px;">
+                    <input type="file" id="exerciseMediaUpload" accept="image/*,video/*" style="flex: 1;">
+                    <button type="button" class="btn-secondary" id="uploadMediaBtn">Ajouter média</button>
+                </div>
+                <div class="modal-actions">
+                    <button type="submit" class="btn-primary">Enregistrer</button>
+                    <button type="button" class="btn-secondary cancel-btn">Annuler</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Session Modal -->
+    <div id="sessionModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2 id="sessionModalTitle">Créer une session</h2>
+            <form id="sessionForm">
+                <div>
+                    <label for="sessionName">Nom de la session</label>
+                    <input type="text" id="sessionName" required>
+                </div>
+                <div>
+                    <label for="sessionDescription">Description</label>
+                    <textarea id="sessionDescription" rows="3"></textarea>
+                </div>
+                <h3>Exercices</h3>
+                <div id="sessionExercisesList"></div>
+                <button type="button" class="btn-secondary" id="addExerciseToSession">+ Ajouter un exercice</button>
+                <div class="modal-actions">
+                    <button type="submit" class="btn-primary">Enregistrer</button>
+                    <button type="button" class="btn-secondary cancel-btn">Annuler</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Set Form Modal -->
+    <div id="setFormModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Ajouter des sets</h2>
+            <form id="setForm">
+                <div id="setsList"></div>
+                <button type="button" class="btn-secondary" id="addSetBtn">+ Ajouter un set</button>
+                <div class="modal-actions">
+                    <button type="submit" class="btn-primary">Confirmer</button>
+                    <button type="button" class="btn-secondary cancel-btn">Annuler</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="app.js?v=5"></script>
+</body>
+</html>

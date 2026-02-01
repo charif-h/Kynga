@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from app.database import engine, Base
 from app.routes import auth, exercises, sessions
 import os
@@ -23,12 +24,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Ensure media directory exists
+os.makedirs(os.path.join("media", "exercises"), exist_ok=True)
+
 # Include routers
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(exercises.router, prefix="/api/exercises", tags=["Exercises"])
 app.include_router(sessions.router, prefix="/api/sessions", tags=["Sessions"])
 
-@app.get("/")
+# Mount media files
+app.mount("/media", StaticFiles(directory="media"), name="media")
+
+# Mount static files (frontend)
+app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")
+
+@app.get("/api")
 def read_root():
     return {
         "message": "Welcome to Kynga - Sports Management API",
