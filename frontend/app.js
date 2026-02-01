@@ -4,9 +4,11 @@ let token = localStorage.getItem('token');
 let currentUser = null;
 let exercises = [];
 let sessions = [];
+let programs = [];
 let isLoginMode = true;
 let editingExerciseId = null;
 let editingSessionId = null;
+let editingProgramId = null;
 let currentExerciseMedia = [];
 let currentSets = [];
 let addingExerciseToSession = null;
@@ -19,6 +21,7 @@ const toggleAuth = document.getElementById('toggleAuth');
 const exerciseModal = document.getElementById('exerciseModal');
 const sessionModal = document.getElementById('sessionModal');
 const setFormModal = document.getElementById('setFormModal');
+const programModal = document.getElementById('programModal');
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -37,6 +40,10 @@ function normalizeToken(value) {
         return null;
     }
     return value;
+}
+
+function getToken() {
+    return token;
 }
 
 // Setup Event Listeners
@@ -79,11 +86,20 @@ function setupEventListeners() {
         openSessionModal();
     });
 
+    // Add Program Button
+    document.getElementById('addProgramBtn').addEventListener('click', () => {
+        editingProgramId = null;
+        openProgramModal();
+    });
+
     // Exercise Form Submit
     document.getElementById('exerciseForm').addEventListener('submit', handleExerciseSubmit);
 
     // Session Form Submit
     document.getElementById('sessionForm').addEventListener('submit', handleSessionSubmit);
+
+    // Program Form Submit
+    document.getElementById('programForm').addEventListener('submit', handleProgramSubmit);
 
     // Close modals
     document.querySelectorAll('.close, .cancel-btn').forEach(btn => {
@@ -96,6 +112,9 @@ function setupEventListeners() {
 
     // Add exercise to session
     document.getElementById('addExerciseToSession').addEventListener('click', addExerciseToSessionForm);
+    
+    // Add session to program
+    document.getElementById('addSessionToProgram').addEventListener('click', addSessionToProgramForm);
     
     // Set Form listeners
     document.getElementById('setForm').addEventListener('submit', handleSetFormSubmit);
@@ -248,6 +267,8 @@ function switchPage(pageName) {
         loadExercises();
     } else if (pageName === 'sessions') {
         loadSessions();
+    } else if (pageName === 'programs') {
+        loadPrograms();
     }
 }
 
@@ -729,8 +750,10 @@ function closeModals(e) {
     exerciseModal.style.display = 'none';
     sessionModal.style.display = 'none';
     setFormModal.style.display = 'none';
+    programModal.style.display = 'none';
     editingExerciseId = null;
     editingSessionId = null;
+    editingProgramId = null;
     currentExerciseMedia = [];
     currentSets = [];
     addingExerciseToSession = null;
@@ -945,4 +968,212 @@ function moveSessionExerciseDown(button) {
     if (next) {
         item.parentElement.insertBefore(next, item);
     }
+}
+// Programs Functions
+async function loadPrograms() {
+    try {
+        const response = await fetch(`${API_URL}/programs/`, {
+            headers: { 'Authorization': `Bearer ${getToken()}` }
+        });
+        const data = await response.json();
+        programs = Array.isArray(data) ? data : (data.data || []);
+        displayPrograms();
+    } catch (error) {
+        console.error('Error loading programs:', error);
+    }
+}
+
+function displayPrograms() {
+    const list = document.getElementById('programsList');
+    list.innerHTML = '';
+    
+    programs.forEach(program => {
+        const div = document.createElement('div');
+        div.className = 'item';
+        div.innerHTML = `
+            <div class="item-info">
+                <h3>${program.name}</h3>
+                <p>${program.description || ''}</p>
+                <small>${program.sessions.length} session(s)</small>
+            </div>
+            <div class="item-actions">
+                <button class="btn-icon" onclick="editProgram(${program.id})" title="Modifier">✏️</button>
+                <button class="btn-icon" onclick="deleteProgram(${program.id})" title="Supprimer">🗑️</button>
+            </div>
+        `;
+        list.appendChild(div);
+    });
+}
+
+function openProgramModal(program = null) {
+    editingProgramId = program ? program.id : null;
+    document.getElementById('programName').value = program ? program.name : '';
+    document.getElementById('programDescription').value = program ? program.description || '' : '';
+    
+    const sessionsList = document.getElementById('programSessionsList');
+    sessionsList.innerHTML = '';
+    
+    if (program && program.sessions) {
+        program.sessions.forEach(ps => {
+            addSessionToProgramList(ps.session_id, ps.session_name, ps.order_index);
+        });
+    }
+    
+    programModal.style.display = 'block';
+}
+
+async function handleProgramSubmit(e) {
+    e.preventDefault();
+    
+    const name = document.getElementById('programName').value;
+    const description = document.getElementById('programDescription').value;
+    
+    const sessionItems = document.querySelectorAll('.program-session-item');
+    const sessions = Array.from(sessionItems).map((item, order_index) => ({
+        session_id: parseInt(item.querySelector('.session-data').value),
+        order_index: order_index
+    }));
+    
+    const programData = { name, description, sessions };
+    
+    try {
+        const url = editingProgramId ? 
+            `${API_URL}/programs/${editingProgramId}` : 
+            `${API_URL}/programs/`;
+        const method = editingProgramId ? 'PUT' : 'POST';
+        
+        const response = await fetch(url, {
+            method,
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${getToken()}`
+            },
+            body: JSON.stringify(programData)
+        });
+        
+        if (response.ok) {
+            closeModals();
+            loadPrograms();
+        } else {
+            alert('Erreur lors de l\'enregistrement du programme');
+        }
+    } catch (error) {
+        console.error('Error saving program:', error);
+        alert('Erreur lors de l\'enregistrement du programme');
+    }
+}
+
+async function editProgram(id) {
+    const program = programs.find(p => p.id === id);
+    if (program) {
+        openProgramModal(program);
+    }
+}
+
+async function deleteProgram(id) {
+    if (!confirm('Supprimer ce programme?')) return;
+    
+    try {
+        const response = await fetch(`${API_URL}/programs/${id}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${getToken()}` }
+        });
+        
+        if (response.ok) {
+            loadPrograms();
+        }
+    } catch (error) {
+        console.error('Error deleting program:', error);
+    }
+}
+
+async function addSessionToProgramForm() {
+    if (sessions.length === 0) {
+        await loadSessions();
+    }
+    
+    if (sessions.length === 0) {
+        alert('Aucune session disponible. Créez une session d\'abord.');
+        return;
+    }
+    
+    const sessionsList = document.getElementById('programSessionsList');
+    const alreadyAdded = Array.from(sessionsList.querySelectorAll('.session-data')).map(el => parseInt(el.value));
+    const availableSessions = sessions.filter(s => !alreadyAdded.includes(s.id));
+    
+    if (availableSessions.length === 0) {
+        alert('Toutes les sessions ont déjà été ajoutées.');
+        return;
+    }
+    
+    // Build HTML with clickable session list
+    let html = '<div style="display: flex; flex-direction: column; gap: 10px;">';
+    availableSessions.forEach(session => {
+        html += `<button type="button" style="padding: 10px; text-align: left; cursor: pointer; border: 1px solid #ccc; border-radius: 4px;" onclick="selectSessionForProgram(${session.id}, '${session.name.replace(/'/g, "\\'")}'); return false;">${session.name}</button>`;
+    });
+    html += '</div>';
+    
+    // Create a modal for selection
+    const modal = document.createElement('div');
+    modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 9999;';
+    modal.innerHTML = `
+        <div style="background: white; padding: 20px; border-radius: 8px; max-width: 400px; width: 90%; max-height: 70vh; overflow-y: auto;">
+            <h3>Sélectionner une session à ajouter</h3>
+            ${html}
+            <button type="button" onclick="this.closest('div').parentElement.remove();" style="margin-top: 15px; padding: 8px 16px; width: 100%; cursor: pointer;">Annuler</button>
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
+
+function selectSessionForProgram(sessionId, sessionName) {
+    const sessionsList = document.getElementById('programSessionsList');
+    const orderIndex = sessionsList.children.length;
+    addSessionToProgramList(sessionId, sessionName, orderIndex);
+    
+    // Close the modal
+    document.querySelectorAll('div[style*="position: fixed"]').forEach(m => {
+        if (m.style.zIndex === '9999') m.remove();
+    });
+}
+
+function addSessionToProgramList(sessionId, sessionName, orderIndex) {
+    const container = document.getElementById('programSessionsList');
+    
+    const sessionItem = document.createElement('div');
+    sessionItem.className = 'program-session-item';
+    sessionItem.innerHTML = `
+        <div class="session-info">
+            <strong>${sessionName}</strong>
+        </div>
+        <div class="session-actions">
+            <button type="button" class="btn-icon" onclick="moveProgramSessionUp(this)" title="Monter">⬆️</button>
+            <button type="button" class="btn-icon" onclick="moveProgramSessionDown(this)" title="Descendre">⬇️</button>
+            <button type="button" class="btn-icon" onclick="removeProgramSession(this)" title="Retirer">🗑️</button>
+        </div>
+        <input type="hidden" class="session-data" value="${sessionId}">
+    `;
+    
+    container.appendChild(sessionItem);
+}
+
+function moveProgramSessionUp(button) {
+    const item = button.closest('.program-session-item');
+    const prev = item?.previousElementSibling;
+    if (prev) {
+        item.parentElement.insertBefore(item, prev);
+    }
+}
+
+function moveProgramSessionDown(button) {
+    const item = button.closest('.program-session-item');
+    const next = item?.nextElementSibling;
+    if (next) {
+        item.parentElement.insertBefore(next, item);
+    }
+}
+
+function removeProgramSession(button) {
+    const item = button.closest('.program-session-item');
+    item.remove();
 }

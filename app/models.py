@@ -14,6 +14,7 @@ class User(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     sessions = relationship("WorkoutSession", back_populates="user", cascade="all, delete-orphan")
+    programs = relationship("Program", cascade="all, delete-orphan")
 
 class Exercise(Base):
     __tablename__ = "exercises"
@@ -51,6 +52,31 @@ class WorkoutSession(Base):
 
     user = relationship("User", back_populates="sessions")
     session_exercises = relationship("SessionExercise", back_populates="session", cascade="all, delete-orphan")
+    program_sessions = relationship("ProgramSession", back_populates="session", cascade="all, delete-orphan")
+
+class Program(Base):
+    __tablename__ = "programs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    name = Column(String(100), nullable=False)
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    user = relationship("User")
+    sessions = relationship("ProgramSession", back_populates="program", cascade="all, delete-orphan")
+
+class ProgramSession(Base):
+    __tablename__ = "program_sessions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    program_id = Column(Integer, ForeignKey("programs.id"), nullable=False)
+    session_id = Column(Integer, ForeignKey("sessions.id"), nullable=False)
+    order_index = Column(Integer, nullable=False, default=1)
+
+    program = relationship("Program", back_populates="sessions")
+    session = relationship("WorkoutSession", back_populates="program_sessions")
 
 class SessionExercise(Base):
     __tablename__ = "session_exercises"

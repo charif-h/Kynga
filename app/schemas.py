@@ -154,3 +154,40 @@ class SessionResponse(SessionBase):
 
     class Config:
         from_attributes = True
+
+# Program Schemas
+class ProgramSessionBase(BaseModel):
+    session_id: int
+    order_index: int = Field(0, ge=0)
+
+class ProgramSessionCreate(ProgramSessionBase):
+    pass
+
+class ProgramSessionResponse(ProgramSessionBase):
+    id: int
+    program_id: int
+    session_name: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+class ProgramBase(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    description: Optional[str] = None
+
+class ProgramCreate(ProgramBase):
+    sessions: List[ProgramSessionCreate] = []
+
+class ProgramUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=100)
+    description: Optional[str] = None
+
+class ProgramResponse(ProgramBase):
+    id: int
+    user_id: int
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    sessions: List[ProgramSessionResponse] = []
+
+    class Config:
+        from_attributes = True

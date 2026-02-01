@@ -43,6 +43,7 @@
             <div class="nav-menu">
                 <button class="nav-btn active" data-page="exercises">Exercices</button>
                 <button class="nav-btn" data-page="sessions">Mes Sessions</button>
+                <button class="nav-btn" data-page="programs">Mes Programmes</button>
                 <button class="nav-btn logout-btn">Déconnexion</button>
             </div>
         </nav>
@@ -73,6 +74,15 @@
                 <button class="btn-primary" id="addSessionBtn">+ Créer une session</button>
             </div>
             <div id="sessionsList" class="cards-grid"></div>
+        </div>
+
+        <!-- Programs Page -->
+        <div id="programsPage" class="page">
+            <div class="page-header">
+                <h2>Mes Programmes</h2>
+                <button class="btn-primary" id="addProgramBtn">+ Créer un programme</button>
+            </div>
+            <div id="programsList" class="cards-grid"></div>
         </div>
     </div>
 
@@ -211,6 +221,29 @@
         </div>
     </div>
 
-    <script src="app.js?v=6"></script>
-</body>
-</html>
+    <!-- Program Modal -->
+    <div id="programModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2 id="programModalTitle">Créer un programme</h2>
+            <form id="programForm">
+                <div>
+                    <label for="programName">Nom du programme</label>
+                    <input type="text" id="programName" required>
+                </div>
+                <div>
+                    <label for="programDescription">Description</label>
+                    <textarea id="programDescription" rows="3"></textarea>
+                </div>
+                <h3>Sessions</h3>
+                <div id="programSessionsList"></div>
+                <button type="button" class="btn-secondary" id="addSessionToProgram">+ Ajouter une session</button>
+                <div class="modal-actions">
+                    <button type="submit" class="btn-primary">Enregistrer</button>
+                    <button type="button" class="btn-secondary cancel-btn">Annuler</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="app.js?v=13"></script>
