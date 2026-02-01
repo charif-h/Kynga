@@ -103,6 +103,9 @@ class ExerciseSetResponse(ExerciseSetBase):
 # Session Exercise Schemas
 class SessionExerciseBase(BaseModel):
     exercise_id: int
+    order_index: int = Field(1, ge=1)
+    rest_between_sets_minutes: float = Field(1.0, ge=0)
+    rest_after_exercise_minutes: float = Field(2.0, ge=0)
     notes: Optional[str] = None
     sets: List[ExerciseSetBase] = []
 
@@ -110,6 +113,9 @@ class SessionExerciseCreate(SessionExerciseBase):
     pass
 
 class SessionExerciseUpdate(BaseModel):
+    order_index: Optional[int] = Field(None, ge=1)
+    rest_between_sets_minutes: Optional[float] = Field(None, ge=0)
+    rest_after_exercise_minutes: Optional[float] = Field(None, ge=0)
     notes: Optional[str] = None
     sets: Optional[List[ExerciseSetBase]] = None
 
@@ -117,6 +123,9 @@ class SessionExerciseResponse(BaseModel):
     id: int
     session_id: int
     exercise_id: int
+    order_index: int
+    rest_between_sets_minutes: float
+    rest_after_exercise_minutes: float
     notes: Optional[str] = None
     created_at: datetime
     exercise_name: Optional[str] = None

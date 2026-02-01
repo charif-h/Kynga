@@ -21,7 +21,7 @@ def build_session_response(db_session: WorkoutSession, db: Session) -> SessionRe
     """Helper function to build session response with all exercises and sets"""
     session_exercises = db.query(SessionExercise).filter(
         SessionExercise.session_id == db_session.id
-    ).all()
+    ).order_by(SessionExercise.order_index, SessionExercise.id).all()
     
     exercises_data = []
     for se in session_exercises:
@@ -48,6 +48,9 @@ def build_session_response(db_session: WorkoutSession, db: Session) -> SessionRe
             id=se.id,
             session_id=se.session_id,
             exercise_id=se.exercise_id,
+            order_index=se.order_index,
+            rest_between_sets_minutes=se.rest_between_sets_minutes,
+            rest_after_exercise_minutes=se.rest_after_exercise_minutes,
             exercise_name=exercise.name if exercise else None,
             notes=se.notes,
             created_at=se.created_at,
@@ -136,6 +139,9 @@ def create_session(
         db_session_exercise = SessionExercise(
             session_id=db_session.id,
             exercise_id=exercise_data.exercise_id,
+            order_index=exercise_data.order_index,
+            rest_between_sets_minutes=exercise_data.rest_between_sets_minutes,
+            rest_after_exercise_minutes=exercise_data.rest_after_exercise_minutes,
             notes=exercise_data.notes
         )
         db.add(db_session_exercise)
@@ -244,6 +250,9 @@ def add_exercise_to_session(
     db_session_exercise = SessionExercise(
         session_id=session_id,
         exercise_id=exercise_data.exercise_id,
+        order_index=exercise_data.order_index,
+        rest_between_sets_minutes=exercise_data.rest_between_sets_minutes,
+        rest_after_exercise_minutes=exercise_data.rest_after_exercise_minutes,
         notes=exercise_data.notes
     )
     db.add(db_session_exercise)
@@ -282,6 +291,9 @@ def add_exercise_to_session(
         id=db_session_exercise.id,
         session_id=db_session_exercise.session_id,
         exercise_id=db_session_exercise.exercise_id,
+        order_index=db_session_exercise.order_index,
+        rest_between_sets_minutes=db_session_exercise.rest_between_sets_minutes,
+        rest_after_exercise_minutes=db_session_exercise.rest_after_exercise_minutes,
         exercise_name=exercise.name,
         notes=db_session_exercise.notes,
         created_at=db_session_exercise.created_at,
@@ -327,6 +339,12 @@ def update_session_exercise(
     update_data = exercise_update.model_dump(exclude_unset=True)
     if "notes" in update_data:
         db_session_exercise.notes = update_data["notes"]
+    if "order_index" in update_data:
+        db_session_exercise.order_index = update_data["order_index"]
+    if "rest_between_sets_minutes" in update_data:
+        db_session_exercise.rest_between_sets_minutes = update_data["rest_between_sets_minutes"]
+    if "rest_after_exercise_minutes" in update_data:
+        db_session_exercise.rest_after_exercise_minutes = update_data["rest_after_exercise_minutes"]
     
     # Update sets if provided
     if "sets" in update_data and update_data["sets"]:
@@ -373,6 +391,9 @@ def update_session_exercise(
         id=db_session_exercise.id,
         session_id=db_session_exercise.session_id,
         exercise_id=db_session_exercise.exercise_id,
+        order_index=db_session_exercise.order_index,
+        rest_between_sets_minutes=db_session_exercise.rest_between_sets_minutes,
+        rest_after_exercise_minutes=db_session_exercise.rest_after_exercise_minutes,
         exercise_name=exercise.name if exercise else None,
         notes=db_session_exercise.notes,
         created_at=db_session_exercise.created_at,

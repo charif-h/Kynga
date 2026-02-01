@@ -189,6 +189,18 @@
             <span class="close">&times;</span>
             <h2>Ajouter des sets</h2>
             <form id="setForm">
+                <div>
+                    <label for="setExerciseSelect">Exercice</label>
+                    <select id="setExerciseSelect" required></select>
+                </div>
+                <div>
+                    <label for="restBetweenSets">Repos entre les sets (min)</label>
+                    <input type="number" id="restBetweenSets" step="0.5" min="0" value="1">
+                </div>
+                <div>
+                    <label for="restAfterExercise">Repos après l'exercice (min)</label>
+                    <input type="number" id="restAfterExercise" step="0.5" min="0" value="2">
+                </div>
                 <div id="setsList"></div>
                 <button type="button" class="btn-secondary" id="addSetBtn">+ Ajouter un set</button>
                 <div class="modal-actions">
@@ -199,6 +211,6 @@
         </div>
     </div>
 
-    <script src="app.js?v=5"></script>
+    <script src="app.js?v=6"></script>
 </body>
 </html>

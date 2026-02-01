@@ -58,6 +58,9 @@ class SessionExercise(Base):
     id = Column(Integer, primary_key=True, index=True)
     session_id = Column(Integer, ForeignKey("sessions.id"), nullable=False)
     exercise_id = Column(Integer, ForeignKey("exercises.id"), nullable=False)
+    order_index = Column(Integer, nullable=False, default=1)
+    rest_between_sets_minutes = Column(Float, nullable=False, default=1.0)
+    rest_after_exercise_minutes = Column(Float, nullable=False, default=2.0)
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
