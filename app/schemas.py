@@ -104,32 +104,26 @@ class ExerciseSetResponse(ExerciseSetBase):
 class SessionExerciseBase(BaseModel):
     exercise_id: int
     order_index: int = Field(1, ge=1)
-    rest_between_sets_minutes: float = Field(1.0, ge=0)
     rest_after_exercise_minutes: float = Field(2.0, ge=0)
     notes: Optional[str] = None
-    sets: List[ExerciseSetBase] = []
 
 class SessionExerciseCreate(SessionExerciseBase):
     pass
 
 class SessionExerciseUpdate(BaseModel):
     order_index: Optional[int] = Field(None, ge=1)
-    rest_between_sets_minutes: Optional[float] = Field(None, ge=0)
     rest_after_exercise_minutes: Optional[float] = Field(None, ge=0)
     notes: Optional[str] = None
-    sets: Optional[List[ExerciseSetBase]] = None
 
 class SessionExerciseResponse(BaseModel):
     id: int
     session_id: int
     exercise_id: int
     order_index: int
-    rest_between_sets_minutes: float
     rest_after_exercise_minutes: float
     notes: Optional[str] = None
     created_at: datetime
     exercise_name: Optional[str] = None
-    sets: List[ExerciseSetResponse] = []
 
     class Config:
         from_attributes = True
@@ -188,6 +182,99 @@ class ProgramResponse(ProgramBase):
     created_at: datetime
     updated_at: Optional[datetime] = None
     sessions: List[ProgramSessionResponse] = []
+
+    class Config:
+        from_attributes = True
+
+# Exercise Goal Schemas
+class ExerciseGoalBase(BaseModel):
+    weight_kg: Optional[float] = Field(None, ge=0)
+    repetitions: Optional[int] = Field(None, ge=1)
+    sets_count: Optional[int] = Field(None, ge=1)
+    time_minutes: Optional[float] = Field(None, ge=0)
+    distance_km: Optional[float] = Field(None, ge=0)
+    calories: Optional[float] = Field(None, ge=0)
+
+class ExerciseGoalCreate(ExerciseGoalBase):
+    session_exercise_id: int
+
+class ExerciseGoalUpdate(ExerciseGoalBase):
+    pass
+
+class ExerciseGoalResponse(ExerciseGoalBase):
+    id: int
+    session_exercise_id: int
+    user_id: int
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+# Exercise Result Schemas
+class ExerciseResultBase(BaseModel):
+    weight_kg: Optional[float] = Field(None, ge=0)
+    repetitions: Optional[int] = Field(None, ge=1)
+    sets_completed: Optional[int] = Field(None, ge=1)
+    time_minutes: Optional[float] = Field(None, ge=0)
+    distance_km: Optional[float] = Field(None, ge=0)
+    calories: Optional[float] = Field(None, ge=0)
+    notes: Optional[str] = None
+
+class ExerciseResultCreate(ExerciseResultBase):
+    session_exercise_id: int
+    goal_id: Optional[int] = None
+
+class ExerciseResultResponse(ExerciseResultBase):
+    id: int
+    session_exercise_id: int
+    user_id: int
+    goal_id: Optional[int] = None
+    goal_weight_kg: Optional[float] = None
+    goal_repetitions: Optional[int] = None
+    goal_sets_count: Optional[int] = None
+    goal_time_minutes: Optional[float] = None
+    goal_distance_km: Optional[float] = None
+    goal_calories: Optional[float] = None
+    achieved: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+# Session Performance Schemas
+class SessionPerformanceBase(BaseModel):
+    total_duration_minutes: Optional[float] = Field(None, ge=0)
+    exercises_completed: int = Field(0, ge=0)
+    exercises_planned: int = Field(0, ge=0)
+    goals_achieved: int = Field(0, ge=0)
+    notes: Optional[str] = None
+
+class SessionPerformanceCreate(SessionPerformanceBase):
+    session_id: int
+
+class SessionPerformanceResponse(SessionPerformanceBase):
+    id: int
+    session_id: int
+    user_id: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+# Exercise History Schemas
+class ExerciseHistoryStats(BaseModel):
+    """Statistics for an exercise over time"""
+    exercise_id: int
+    exercise_name: str
+    total_sessions: int
+    goals_achieved: int
+    average_weight_kg: Optional[float] = None
+    average_reps: Optional[int] = None
+    max_weight_kg: Optional[float] = None
+    max_reps: Optional[int] = None
+    personal_best: Optional[dict] = None
+    recent_results: List[ExerciseResultResponse] = []
 
     class Config:
         from_attributes = True

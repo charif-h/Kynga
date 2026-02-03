@@ -118,9 +118,6 @@ function setupEventListeners() {
     
     // Set Form listeners
     document.getElementById('setForm').addEventListener('submit', handleSetFormSubmit);
-    if (document.getElementById('addSetBtn')) {
-        document.getElementById('addSetBtn').addEventListener('click', addSetToForm);
-    }
     const setExerciseSelect = document.getElementById('setExerciseSelect');
     if (setExerciseSelect) {
         setExerciseSelect.addEventListener('change', updateSelectedExerciseFromModal);
@@ -183,6 +180,16 @@ async function register(email, password, name) {
         const data = await response.json();
         token = data.access_token;
         localStorage.setItem('token', token);
+        
+        // Get user info and save userId
+        const userResponse = await fetch(`${API_URL}/auth/me`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (userResponse.ok) {
+            const user = await userResponse.json();
+            localStorage.setItem('userId', user.id);
+        }
+        
         showApp();
     } catch (error) {
         console.error('Register error:', error);
@@ -210,6 +217,16 @@ async function login(email, password) {
         const data = await response.json();
         token = data.access_token;
         localStorage.setItem('token', token);
+        
+        // Get user info and save userId
+        const userResponse = await fetch(`${API_URL}/auth/me`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (userResponse.ok) {
+            const user = await userResponse.json();
+            localStorage.setItem('userId', user.id);
+        }
+        
         showApp();
     } catch (error) {
         console.error('Login error:', error);
@@ -231,13 +248,17 @@ async function verifyToken() {
         }
     } catch (error) {
         localStorage.removeItem('token');
+        localStorage.removeItem('userId');
         token = null;
+        currentUser = null;
+        alert('Votre session a expiré. Veuillez vous reconnecter.');
         showAuth();
     }
 }
 
 function logout() {
     localStorage.removeItem('token');
+    localStorage.removeItem('userId');
     token = null;
     currentUser = null;
     showAuth();
@@ -503,11 +524,15 @@ function openSessionModal(session = null) {
         title.textContent = 'Modifier la session';
         document.getElementById('sessionName').value = session.name;
         document.getElementById('sessionDescription').value = session.description || '';
-        // TODO: Load session exercises
+        editingSessionId = session.id;
+        
+        // Load session exercises
+        displaySessionExercisesInModal(session.exercises || []);
     } else {
         title.textContent = 'Créer une session';
         document.getElementById('sessionForm').reset();
         document.getElementById('sessionExercisesList').innerHTML = '';
+        editingSessionId = null;
     }
     
     modal.style.display = 'flex';
@@ -517,15 +542,61 @@ function addExerciseToSessionForm() {
     openSetFormModal();
 }
 
+function displaySessionExercisesInModal(exercises) {
+    const container = document.getElementById('sessionExercisesList');
+    
+    if (!exercises || exercises.length === 0) {
+        container.innerHTML = `
+            <div style="padding: 15px; border: 2px dashed #ddd; border-radius: 5px; text-align: center; color: #999; margin: 10px 0;">
+                <p>Aucun exercice ajouté</p>
+                <small>Cliquez sur "+ Ajouter un exercice" pour en ajouter</small>
+            </div>
+        `;
+        return;
+    }
+    
+    container.innerHTML = exercises.map((exercise, index) => {
+        // exercise peut être un objet avec 'name' ou 'exercise_name'
+        const exerciseName = exercise.name || exercise.exercise_name || 'Exercice inconnu';
+        const restAfter = exercise.rest_after_exercise_minutes || 2;
+        const notes = exercise.notes || '';
+        const exerciseId = exercise.exercise_id || exercise.id;
+        
+        return `
+            <div class="session-exercise-item" data-exercise-id="${exerciseId}" data-exercise-data='${JSON.stringify({
+                exercise_id: exerciseId,
+                rest_after_exercise_minutes: restAfter,
+                notes: notes || null
+            })}'>
+                <div style="padding: 10px; border: 1px solid #ddd; border-radius: 5px; margin-bottom: 8px;">
+                    <div class="session-exercise-header" style="display:flex; justify-content:space-between; align-items:center;">
+                        <div style="flex: 1;">
+                            <strong>${index + 1}. ${exerciseName}</strong>
+                            ${notes ? `<p style="font-size: 12px; color: #666; margin: 5px 0;">📝 ${notes}</p>` : ''}
+                        </div>
+                        <div>
+                            <button type="button" class="btn-secondary" onclick="moveSessionExerciseUp(this)" title="Monter">↑</button>
+                            <button type="button" class="btn-secondary" onclick="moveSessionExerciseDown(this)" title="Descendre">↓</button>
+                            <button type="button" class="btn-delete" onclick="this.closest('.session-exercise-item').remove()" title="Supprimer">✕</button>
+                        </div>
+                    </div>
+                    <div style="margin-top: 6px; font-size: 12px; color:#666;">
+                        ⏱️ Repos après: ${restAfter} min
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
 async function handleSessionSubmit(e) {
     e.preventDefault();
     
     const sessionExercises = [];
     document.querySelectorAll('.session-exercise-item').forEach(item => {
-        const exerciseDataInput = item.querySelector('.exercise-data');
-        if (exerciseDataInput) {
-            const exerciseData = JSON.parse(exerciseDataInput.value);
-            sessionExercises.push(exerciseData);
+        const exerciseData = item.dataset.exerciseData;
+        if (exerciseData) {
+            sessionExercises.push(JSON.parse(exerciseData));
         }
     });
 
@@ -777,11 +848,9 @@ function openSetFormModal() {
     select.value = exercises[0].id;
     updateSelectedExerciseFromModal();
 
-    document.getElementById('restBetweenSets').value = 1;
     document.getElementById('restAfterExercise').value = 2;
+    document.getElementById('exerciseNotes').value = '';
 
-    currentSets = [];
-    displaySets();
     setFormModal.style.display = 'flex';
 }
 
@@ -803,111 +872,31 @@ function updateSelectedExerciseFromModal() {
         has_distance: exercise.has_distance,
         has_calories: exercise.has_calories
     };
-
-    currentSets = [];
-    displaySets();
 }
 
+// Deprecated - kept for compatibility but no longer used
 function addSetToForm() {
-    const setNumber = currentSets.length + 1;
-    currentSets.push({
-        set_number: setNumber,
-        weight_kg: null,
-        calories: null,
-        time_minutes: null,
-        repetitions: null,
-        distance_km: null
-    });
-    displaySets();
+    // No longer adding sets during session creation
 }
 
 function displaySets() {
-    const setsList = document.getElementById('setsList');
-
-    if (!addingExerciseToSession) {
-        setsList.innerHTML = '';
-        return;
-    }
-
-    if (currentSets.length === 0) {
-        setsList.innerHTML = '<p style="grid-column: 1/-1; text-align: center; color: #999;">Aucun set</p>';
-        return;
-    }
-
-    setsList.innerHTML = currentSets.map((set, index) => `
-        <div class="set-item">
-            <h4>Set ${set.set_number}</h4>
-            ${addingExerciseToSession.has_time ? `
-                <div>
-                    <label>Temps (min)</label>
-                    <input type="number" step="0.1" class="set-time-${index}" value="${set.time_minutes || ''}">
-                </div>
-            ` : ''}
-            ${addingExerciseToSession.has_repetitions ? `
-                <div>
-                    <label>Répétitions</label>
-                    <input type="number" class="set-reps-${index}" value="${set.repetitions || ''}">
-                </div>
-            ` : ''}
-            ${addingExerciseToSession.has_weight ? `
-                <div>
-                    <label>Poids (kg)</label>
-                    <input type="number" step="0.1" class="set-weight-${index}" value="${set.weight_kg || ''}">
-                </div>
-            ` : ''}
-            ${addingExerciseToSession.has_distance ? `
-                <div>
-                    <label>Distance (km)</label>
-                    <input type="number" step="0.1" class="set-distance-${index}" value="${set.distance_km || ''}">
-                </div>
-            ` : ''}
-            ${addingExerciseToSession.has_calories ? `
-                <div>
-                    <label>Calories</label>
-                    <input type="number" step="0.1" class="set-calories-${index}" value="${set.calories || ''}">
-                </div>
-            ` : ''}
-            <button type="button" class="btn-delete" onclick="removeSet(${index})">Supprimer</button>
-        </div>
-    `).join('');
+    // No longer displaying sets during session creation
 }
 
 function removeSet(index) {
-    currentSets.splice(index, 1);
-    // Renumber sets
-    currentSets = currentSets.map((set, i) => ({...set, set_number: i + 1}));
-    displaySets();
+    // No longer managing sets during session creation
 }
 
 function handleSetFormSubmit(e) {
     e.preventDefault();
 
-    if (currentSets.length === 0) {
-        alert('Veuillez ajouter au moins un set');
+    if (!addingExerciseToSession) {
+        alert('Veuillez sélectionner un exercice');
         return;
     }
     
-    // Read values from form
-    currentSets.forEach((set, index) => {
-        if (addingExerciseToSession.has_time) {
-            set.time_minutes = parseFloat(document.querySelector(`.set-time-${index}`)?.value) || null;
-        }
-        if (addingExerciseToSession.has_repetitions) {
-            set.repetitions = parseInt(document.querySelector(`.set-reps-${index}`)?.value) || null;
-        }
-        if (addingExerciseToSession.has_weight) {
-            set.weight_kg = parseFloat(document.querySelector(`.set-weight-${index}`)?.value) || null;
-        }
-        if (addingExerciseToSession.has_distance) {
-            set.distance_km = parseFloat(document.querySelector(`.set-distance-${index}`)?.value) || null;
-        }
-        if (addingExerciseToSession.has_calories) {
-            set.calories = parseFloat(document.querySelector(`.set-calories-${index}`)?.value) || null;
-        }
-    });
-    
-    const restBetweenSets = parseFloat(document.getElementById('restBetweenSets').value) || 1;
     const restAfterExercise = parseFloat(document.getElementById('restAfterExercise').value) || 2;
+    const notes = document.getElementById('exerciseNotes').value.trim() || null;
 
     // Add to session exercises list
     const container = document.getElementById('sessionExercisesList');
@@ -916,10 +905,8 @@ function handleSetFormSubmit(e) {
     
     const exerciseData = {
         exercise_id: addingExerciseToSession.exercise_id,
-        rest_between_sets_minutes: restBetweenSets,
         rest_after_exercise_minutes: restAfterExercise,
-        notes: null,
-        sets: currentSets
+        notes: notes
     };
     
     exerciseItem.innerHTML = `
@@ -933,23 +920,13 @@ function handleSetFormSubmit(e) {
                 </div>
             </div>
             <div style="margin-top: 6px; font-size: 12px; color:#666;">
-                Repos entre sets: ${restBetweenSets} min • Repos après exercice: ${restAfterExercise} min
+                Repos après exercice: ${restAfterExercise} min
+                ${notes ? `<br>Notes: ${notes}` : ''}
             </div>
-            <div style="margin-top: 5px; font-size: 12px;">
-                ${currentSets.map(set => {
-                    const parts = [];
-                    if (set.time_minutes) parts.push(`${set.time_minutes}min`);
-                    if (set.repetitions) parts.push(`${set.repetitions}x`);
-                    if (set.weight_kg) parts.push(`${set.weight_kg}kg`);
-                    if (set.distance_km) parts.push(`${set.distance_km}km`);
-                    if (set.calories) parts.push(`${set.calories}cal`);
-                    return `Set ${set.set_number}: ${parts.join(' • ')}`;
-                }).join('<br>')}
-            </div>
-            <input type="hidden" class="exercise-data" value='${JSON.stringify(exerciseData)}'>
         </div>
     `;
     
+    exerciseItem.dataset.exerciseData = JSON.stringify(exerciseData);
     container.appendChild(exerciseItem);
     closeSetModal();
 }
@@ -975,6 +952,16 @@ async function loadPrograms() {
         const response = await fetch(`${API_URL}/programs/`, {
             headers: { 'Authorization': `Bearer ${getToken()}` }
         });
+        if (!response.ok) {
+            if (response.status === 401) {
+                localStorage.removeItem('token');
+                localStorage.removeItem('userId');
+                showAuth();
+                return;
+            }
+            console.error('Error loading programs:', response.status);
+            return;
+        }
         const data = await response.json();
         programs = Array.isArray(data) ? data : (data.data || []);
         displayPrograms();
@@ -1088,41 +1075,66 @@ async function deleteProgram(id) {
 }
 
 async function addSessionToProgramForm() {
-    if (sessions.length === 0) {
-        await loadSessions();
+    try {
+        const response = await fetch(`${API_URL}/sessions/`, {
+            headers: { 'Authorization': `Bearer ${getToken()}` }
+        });
+
+        if (!response.ok) {
+            alert('Erreur lors du chargement des sessions');
+            return;
+        }
+
+        sessions = await response.json();
+    } catch (error) {
+        console.error('Erreur lors du chargement des sessions:', error);
+        alert('Erreur lors du chargement des sessions');
+        return;
     }
-    
+
     if (sessions.length === 0) {
         alert('Aucune session disponible. Créez une session d\'abord.');
         return;
     }
-    
+
     const sessionsList = document.getElementById('programSessionsList');
     const alreadyAdded = Array.from(sessionsList.querySelectorAll('.session-data')).map(el => parseInt(el.value));
     const availableSessions = sessions.filter(s => !alreadyAdded.includes(s.id));
-    
+
     if (availableSessions.length === 0) {
         alert('Toutes les sessions ont déjà été ajoutées.');
         return;
     }
-    
-    // Build HTML with clickable session list
-    let html = '<div style="display: flex; flex-direction: column; gap: 10px;">';
-    availableSessions.forEach(session => {
-        html += `<button type="button" style="padding: 10px; text-align: left; cursor: pointer; border: 1px solid #ccc; border-radius: 4px;" onclick="selectSessionForProgram(${session.id}, '${session.name.replace(/'/g, "\\'")}'); return false;">${session.name}</button>`;
-    });
-    html += '</div>';
-    
-    // Create a modal for selection
+
     const modal = document.createElement('div');
+    modal.dataset.modalType = 'program-session-selector';
     modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 9999;';
-    modal.innerHTML = `
-        <div style="background: white; padding: 20px; border-radius: 8px; max-width: 400px; width: 90%; max-height: 70vh; overflow-y: auto;">
-            <h3>Sélectionner une session à ajouter</h3>
-            ${html}
-            <button type="button" onclick="this.closest('div').parentElement.remove();" style="margin-top: 15px; padding: 8px 16px; width: 100%; cursor: pointer;">Annuler</button>
-        </div>
-    `;
+
+    const content = document.createElement('div');
+    content.style.cssText = 'background: white; padding: 20px; border-radius: 8px; max-width: 400px; width: 90%; max-height: 70vh; overflow-y: auto;';
+    content.innerHTML = '<h3>Sélectionner une session à ajouter</h3>';
+
+    const list = document.createElement('div');
+    list.style.cssText = 'display: flex; flex-direction: column; gap: 10px;';
+
+    availableSessions.forEach(session => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = session.name;
+        button.style.cssText = 'padding: 10px; text-align: left; cursor: pointer; border: 1px solid #ccc; border-radius: 4px;';
+        button.addEventListener('click', () => selectSessionForProgram(session.id, session.name));
+        list.appendChild(button);
+    });
+
+    const cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.textContent = 'Annuler';
+    cancel.style.cssText = 'margin-top: 15px; padding: 8px 16px; width: 100%; cursor: pointer;';
+    cancel.addEventListener('click', () => modal.remove());
+
+    content.appendChild(list);
+    content.appendChild(cancel);
+    modal.appendChild(content);
     document.body.appendChild(modal);
 }
 
@@ -1130,11 +1142,9 @@ function selectSessionForProgram(sessionId, sessionName) {
     const sessionsList = document.getElementById('programSessionsList');
     const orderIndex = sessionsList.children.length;
     addSessionToProgramList(sessionId, sessionName, orderIndex);
-    
-    // Close the modal
-    document.querySelectorAll('div[style*="position: fixed"]').forEach(m => {
-        if (m.style.zIndex === '9999') m.remove();
-    });
+
+    const modal = document.querySelector('[data-modal-type="program-session-selector"]');
+    if (modal) modal.remove();
 }
 
 function addSessionToProgramList(sessionId, sessionName, orderIndex) {

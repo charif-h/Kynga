@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import FileResponse
 from app.database import engine, Base
-from app.routes import auth, exercises, sessions, programs
+from app.routes import auth, exercises, sessions, programs, performance, timer
 import os
 
 # Create database tables
@@ -35,16 +35,13 @@ app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(exercises.router, prefix="/api/exercises", tags=["Exercises"])
 app.include_router(sessions.router, prefix="/api/sessions", tags=["Sessions"])
 app.include_router(programs.router, prefix="/api/programs", tags=["Programs"])
+app.include_router(performance.router, prefix="/api/performance", tags=["Performance & History"])
+app.include_router(timer.router, prefix="/api/performance", tags=["Rest Timers"])
 
 @app.get("/api")
 def read_api():
     return {"message": "API is working", "version": "1.0.0"}
 
-@app.get("/api/test")
-def test_api():
-    return {"message": "Test endpoint working"}
-
-# Mount media files
 app.mount("/media", StaticFiles(directory="media"), name="media")
 
 # Serve frontend files and index.html

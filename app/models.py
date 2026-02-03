@@ -85,7 +85,6 @@ class SessionExercise(Base):
     session_id = Column(Integer, ForeignKey("sessions.id"), nullable=False)
     exercise_id = Column(Integer, ForeignKey("exercises.id"), nullable=False)
     order_index = Column(Integer, nullable=False, default=1)
-    rest_between_sets_minutes = Column(Float, nullable=False, default=1.0)
     rest_after_exercise_minutes = Column(Float, nullable=False, default=2.0)
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -134,3 +133,78 @@ class ExerciseMedia(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     exercise = relationship("Exercise", back_populates="media")
+class ExerciseGoal(Base):
+    """Store exercise objectives for a specific session exercise"""
+    __tablename__ = "exercise_goals"
+
+    id = Column(Integer, primary_key=True, index=True)
+    session_exercise_id = Column(Integer, ForeignKey("session_exercises.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    
+    # Objectives
+    weight_kg = Column(Float, nullable=True)
+    repetitions = Column(Integer, nullable=True)
+    sets_count = Column(Integer, nullable=True)
+    time_minutes = Column(Float, nullable=True)
+    distance_km = Column(Float, nullable=True)
+    calories = Column(Float, nullable=True)
+    
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    session_exercise = relationship("SessionExercise")
+    user = relationship("User")
+
+class ExerciseResult(Base):
+    """Store the actual performance results after completing an exercise"""
+    __tablename__ = "exercise_results"
+
+    id = Column(Integer, primary_key=True, index=True)
+    session_exercise_id = Column(Integer, ForeignKey("session_exercises.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    goal_id = Column(Integer, ForeignKey("exercise_goals.id"), nullable=True)
+    
+    # Actual performance
+    weight_kg = Column(Float, nullable=True)
+    repetitions = Column(Integer, nullable=True)
+    sets_completed = Column(Integer, nullable=True)
+    time_minutes = Column(Float, nullable=True)
+    distance_km = Column(Float, nullable=True)
+    calories = Column(Float, nullable=True)
+    
+    # Goal comparison
+    goal_weight_kg = Column(Float, nullable=True)
+    goal_repetitions = Column(Integer, nullable=True)
+    goal_sets_count = Column(Integer, nullable=True)
+    goal_time_minutes = Column(Float, nullable=True)
+    goal_distance_km = Column(Float, nullable=True)
+    goal_calories = Column(Float, nullable=True)
+    
+    # Status
+    achieved = Column(Boolean, default=False)  # True if all metrics met or exceeded
+    notes = Column(Text, nullable=True)
+    
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    session_exercise = relationship("SessionExercise")
+    user = relationship("User")
+    goal = relationship("ExerciseGoal")
+
+class SessionPerformance(Base):
+    """Track overall session performance"""
+    __tablename__ = "session_performance"
+
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(Integer, ForeignKey("sessions.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    
+    total_duration_minutes = Column(Float, nullable=True)
+    exercises_completed = Column(Integer, default=0)
+    exercises_planned = Column(Integer, default=0)
+    goals_achieved = Column(Integer, default=0)
+    notes = Column(Text, nullable=True)
+    
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    session = relationship("WorkoutSession")
+    user = relationship("User")
