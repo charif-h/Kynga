@@ -254,6 +254,13 @@
                     <label for="exerciseNotes">Notes (optionnel)</label>
                     <textarea id="exerciseNotes" rows="2" placeholder="Instructions spécifiques..."></textarea>
                 </div>
+                <div style="margin-top: 20px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <label style="margin: 0;"><strong>Sets</strong></label>
+                        <button type="button" class="btn-secondary" id="addSetBtn" style="padding: 4px 8px; font-size: 14px;">+ Ajouter un set</button>
+                    </div>
+                    <div id="setsList" style="display: grid; gap: 10px;"></div>
+                </div>
                 <div class="modal-actions">
                     <button type="submit" class="btn-primary">Ajouter</button>
                     <button type="button" class="btn-secondary cancel-btn">Annuler</button>

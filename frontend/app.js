@@ -11,6 +11,7 @@ let editingSessionId = null;
 let editingProgramId = null;
 let currentProgramId = null;
 let currentExerciseMedia = [];
+let currentExerciseMediaFiles = []; // Store actual file objects
 let currentSets = [];
 let addingExerciseToSession = null;
 
@@ -159,8 +160,13 @@ function setupEventListeners() {
         runnerRemoveRestBtn.addEventListener('click', () => addRestSeconds(-15));
     }
     
-    // Set Form listeners
-    document.getElementById('setForm').addEventListener('submit', handleSetFormSubmit);
+    const addSetBtn = document.getElementById('addSetBtn');
+    if (addSetBtn) {
+        addSetBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            addSetToUI();
+        });
+    }
     const setExerciseSelect = document.getElementById('setExerciseSelect');
     if (setExerciseSelect) {
         setExerciseSelect.addEventListener('change', updateSelectedExerciseFromModal);
@@ -372,6 +378,13 @@ function displayExercises(exercisesToDisplay) {
 
     container.innerHTML = exercisesToDisplay.map(exercise => {
         const profileImage = exercise.profile_media_url || exercise.image_url;
+        const metrics = [];
+        if (exercise.has_time) metrics.push('⏱️ Temps');
+        if (exercise.has_repetitions) metrics.push('🔢 Répétitions');
+        if (exercise.has_weight) metrics.push('🏋️ Poids');
+        if (exercise.has_distance) metrics.push('📏 Distance');
+        if (exercise.has_calories) metrics.push('🔥 Calories');
+        
         return `
         <div class="card">
             ${profileImage ? `<img src="${profileImage}" alt="${exercise.name}" style="width:100%; height:200px; object-fit:cover; border-radius:5px; margin-bottom:10px;">` : ''}
@@ -383,6 +396,7 @@ function displayExercises(exercisesToDisplay) {
             </div>
             ${exercise.affected_muscles && exercise.affected_muscles.length ? `<p><strong>Muscles:</strong> ${exercise.affected_muscles.join(', ')}</p>` : ''}
             ${exercise.needed_accessories && exercise.needed_accessories.length ? `<p><strong>Accessoires:</strong> ${exercise.needed_accessories.join(', ')}</p>` : ''}
+            ${metrics.length ? `<p><strong>Métriques:</strong> ${metrics.join(' • ')}</p>` : ''}
             <div class="card-actions">
                 <button class="btn-edit" onclick="editExercise(${exercise.id})">Modifier</button>
                 <button class="btn-delete" onclick="deleteExercise(${exercise.id})">Supprimer</button>
@@ -425,10 +439,18 @@ function openExerciseModal(exercise = null) {
         document.getElementById('metricDistance').checked = exercise.has_distance || false;
         document.getElementById('metricCalories').checked = exercise.has_calories || false;
         currentExerciseMedia = exercise.media || [];
+        currentExerciseMediaFiles = []; // Clear file storage when editing existing exercise
     } else {
         title.textContent = 'Ajouter un exercice';
         document.getElementById('exerciseForm').reset();
+        // Réinitialiser les métriques
+        document.getElementById('metricTime').checked = false;
+        document.getElementById('metricRepetitions').checked = false;
+        document.getElementById('metricWeight').checked = false;
+        document.getElementById('metricDistance').checked = false;
+        document.getElementById('metricCalories').checked = false;
         currentExerciseMedia = [];
+        currentExerciseMediaFiles = [];
     }
     
     document.getElementById('exerciseMediaUpload').value = '';
@@ -454,6 +476,8 @@ async function handleExerciseSubmit(e) {
         has_calories: document.getElementById('metricCalories').checked
     };
 
+    console.log('Exercice data before submit:', exerciseData);
+
     try {
         const url = editingExerciseId 
             ? `${API_URL}/exercises/${editingExerciseId}`
@@ -472,22 +496,68 @@ async function handleExerciseSubmit(e) {
 
         if (response.ok) {
             const createdExercise = await response.json();
+            console.log('Created exercise response:', createdExercise);
             
             // Upload local media files if creating new exercise
             if (!editingExerciseId && currentExerciseMedia.length > 0) {
+                let profileMediaId = null;
                 for (const media of currentExerciseMedia) {
                     if (media.isLocal) {
-                        // Get the actual file from input
-                        const fileInput = document.getElementById('exerciseMediaUpload');
-                        // We need to re-upload, so just reload
+                        // Récupérer le fichier stocké avec le média
+                        const fileData = currentExerciseMediaFiles.find(f => f.id === media.id);
+                        if (fileData && fileData.file) {
+                            const formData = new FormData();
+                            formData.append('file', fileData.file);
+                            
+                            try {
+                                const uploadResponse = await fetch(
+                                    `${API_URL}/exercises/${createdExercise.id}/media`,
+                                    {
+                                        method: 'POST',
+                                        headers: { 'Authorization': `Bearer ${token}` },
+                                        body: formData
+                                    }
+                                );
+                                
+                                if (uploadResponse.ok) {
+                                    const uploadedMedia = await uploadResponse.json();
+                                    console.log('Media uploaded successfully:', uploadedMedia);
+                                    // Définir comme image de profil si c'est une image
+                                    if (media.media_type === 'image') {
+                                        profileMediaId = uploadedMedia.id;
+                                    }
+                                }
+                            } catch (uploadError) {
+                                console.error('Erreur upload média:', uploadError);
+                            }
+                        }
                     }
                 }
+                
+                // Définir l'image de profil si trouvée
+                if (profileMediaId) {
+                    try {
+                        await fetch(
+                            `${API_URL}/exercises/${createdExercise.id}/profile-media/${profileMediaId}`,
+                            {
+                                method: 'PUT',
+                                headers: { 'Authorization': `Bearer ${token}` }
+                            }
+                        );
+                        console.log('Profile media set successfully');
+                    } catch (profileError) {
+                        console.error('Erreur définition profil media:', profileError);
+                    }
+                }
+                // Clear the media files after upload
+                currentExerciseMediaFiles = [];
             }
             
             closeModals();
             loadExercises();
         } else {
             const error = await response.json();
+            console.error('API error:', error);
             alert('Erreur: ' + (error.detail || 'Une erreur est survenue'));
         }
     } catch (error) {
@@ -763,12 +833,18 @@ async function uploadExerciseMedia() {
         // Just add to local array for preview
         const reader = new FileReader();
         reader.onload = (e) => {
+            const mediaId = Date.now();
             currentExerciseMedia.push({
-                id: Date.now(),
+                id: mediaId,
                 media_type: file.type.startsWith('video/') ? 'video' : 'image',
                 url: e.target.result,
                 filename: file.name,
                 isLocal: true
+            });
+            // Store the actual file object for later upload
+            currentExerciseMediaFiles.push({
+                id: mediaId,
+                file: file
             });
             displayExerciseMedia();
             fileInput.value = '';
@@ -898,8 +974,75 @@ function openSetFormModal() {
 
     document.getElementById('restAfterExercise').value = 2;
     document.getElementById('exerciseNotes').value = '';
+    
+    // Initialize sets list with one empty set
+    currentSets = [{id: 1}];
+    displaySetsUI();
 
     setFormModal.style.display = 'flex';
+}
+
+function displaySetsUI() {
+    const setsList = document.getElementById('setsList');
+    const exercise = addingExerciseToSession;
+    
+    if (!exercise) return;
+    
+    setsList.innerHTML = currentSets.map((set, index) => `
+        <div style="border: 1px solid #ddd; border-radius: 8px; padding: 12px; background: #f9f9f9;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <strong>Set ${index + 1}</strong>
+                <button type="button" class="btn-delete" style="padding: 4px 8px; font-size: 12px;" onclick="deleteSet(${index})">- Supprimer</button>
+            </div>
+            <div style="display: grid; gap: 8px;">
+                ${exercise.has_repetitions ? `
+                    <div>
+                        <label>Répétitions</label>
+                        <input type="number" class="set-metric" data-set="${index}" data-metric="repetitions" min="0" placeholder="Répétitions">
+                    </div>
+                ` : ''}
+                ${exercise.has_weight ? `
+                    <div>
+                        <label>Poids (kg)</label>
+                        <input type="number" class="set-metric" data-set="${index}" data-metric="weight" min="0" step="0.5" placeholder="Poids">
+                    </div>
+                ` : ''}
+                ${exercise.has_time ? `
+                    <div>
+                        <label>Temps (min)</label>
+                        <input type="number" class="set-metric" data-set="${index}" data-metric="time" min="0" step="0.1" placeholder="Temps">
+                    </div>
+                ` : ''}
+                ${exercise.has_distance ? `
+                    <div>
+                        <label>Distance (km)</label>
+                        <input type="number" class="set-metric" data-set="${index}" data-metric="distance" min="0" step="0.1" placeholder="Distance">
+                    </div>
+                ` : ''}
+                ${exercise.has_calories ? `
+                    <div>
+                        <label>Calories</label>
+                        <input type="number" class="set-metric" data-set="${index}" data-metric="calories" min="0" placeholder="Calories">
+                    </div>
+                ` : ''}
+            </div>
+        </div>
+    `).join('');
+}
+
+function addSetToUI() {
+    const newSetId = Math.max(...currentSets.map(s => s.id), 0) + 1;
+    currentSets.push({id: newSetId});
+    displaySetsUI();
+}
+
+function deleteSet(index) {
+    if (currentSets.length <= 1) {
+        alert('Vous devez avoir au moins un set');
+        return;
+    }
+    currentSets.splice(index, 1);
+    displaySetsUI();
 }
 
 function updateSelectedExerciseFromModal() {
@@ -922,18 +1065,6 @@ function updateSelectedExerciseFromModal() {
     };
 }
 
-// Deprecated - kept for compatibility but no longer used
-function addSetToForm() {
-    // No longer adding sets during session creation
-}
-
-function displaySets() {
-    // No longer displaying sets during session creation
-}
-
-function removeSet(index) {
-    // No longer managing sets during session creation
-}
 
 function handleSetFormSubmit(e) {
     e.preventDefault();
@@ -1162,7 +1293,7 @@ async function renderSessionGoals(session) {
         return { sessionExercise: se, exercise, lastResult: last };
     }));
 
-    container.innerHTML = exerciseDetails.map(({ sessionExercise, exercise, lastResult }) => {
+    container.innerHTML = exerciseDetails.map(({ sessionExercise, exercise, lastResult }, exerciseIndex) => {
         const name = sessionExercise.exercise_name || exercise?.name || 'Exercice';
         const hasReps = !!exercise?.has_repetitions;
         const hasTime = !!exercise?.has_time;
@@ -1170,7 +1301,6 @@ async function renderSessionGoals(session) {
         const hasDistance = !!exercise?.has_distance;
         const hasCalories = !!exercise?.has_calories;
 
-        const setsVal = lastResult?.sets_completed ?? '';
         const repsVal = lastResult?.repetitions ?? '';
         const timeVal = lastResult?.time_minutes ?? '';
         const weightVal = lastResult?.weight_kg ?? '';
@@ -1183,6 +1313,7 @@ async function renderSessionGoals(session) {
             <div class="card" 
                 data-session-exercise-id="${sessionExercise.id}"
                 data-exercise-name="${safeName}"
+                data-exercise-index="${exerciseIndex}"
                 data-has-reps="${hasReps}"
                 data-has-time="${hasTime}"
                 data-has-weight="${hasWeight}"
@@ -1190,41 +1321,52 @@ async function renderSessionGoals(session) {
                 data-has-calories="${hasCalories}">
                 <h3>${name}</h3>
                 <input type="hidden" class="goal-session-exercise" value="${sessionExercise.id}">
-                <div class="form-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px;">
-                    <div>
-                        <label>Nombre de sets</label>
-                        <input type="number" class="goal-sets" min="0" value="${setsVal}">
+                
+                <div style="margin-bottom: 10px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <strong>Sets</strong>
+                        <button type="button" class="btn-secondary" style="padding: 4px 8px; font-size: 12px;" onclick="addGoalSet(${exerciseIndex})">+ Ajouter un set</button>
                     </div>
-                    ${hasReps ? `
-                        <div>
-                            <label>Répétitions / set</label>
-                            <input type="number" class="goal-reps" min="0" value="${repsVal}">
+                    <div class="goal-sets-container" data-exercise-index="${exerciseIndex}">
+                        <div class="goal-set-item" style="border: 1px solid #ddd; border-radius: 8px; padding: 10px; background: #f9f9f9; margin-bottom: 8px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                <strong>Set 1</strong>
+                                <button type="button" class="btn-delete" style="padding: 4px 8px; font-size: 12px; display: none;" onclick="removeGoalSet(${exerciseIndex}, 0)">- Supprimer</button>
+                            </div>
+                            <div class="form-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px;">
+                                ${hasReps ? `
+                                    <div>
+                                        <label>Répétitions</label>
+                                        <input type="number" class="set-reps" min="0" value="${repsVal}" data-exercise="${exerciseIndex}" data-set="0">
+                                    </div>
+                                ` : ''}
+                                ${hasTime ? `
+                                    <div>
+                                        <label>Temps (min)</label>
+                                        <input type="number" class="set-time" min="0" step="0.1" value="${timeVal}" data-exercise="${exerciseIndex}" data-set="0">
+                                    </div>
+                                ` : ''}
+                                ${hasWeight ? `
+                                    <div>
+                                        <label>Poids (kg)</label>
+                                        <input type="number" class="set-weight" min="0" step="0.1" value="${weightVal}" data-exercise="${exerciseIndex}" data-set="0">
+                                    </div>
+                                ` : ''}
+                                ${hasDistance ? `
+                                    <div>
+                                        <label>Distance (km)</label>
+                                        <input type="number" class="set-distance" min="0" step="0.1" value="${distanceVal}" data-exercise="${exerciseIndex}" data-set="0">
+                                    </div>
+                                ` : ''}
+                                ${hasCalories ? `
+                                    <div>
+                                        <label>Calories</label>
+                                        <input type="number" class="set-calories" min="0" step="0.1" value="${caloriesVal}" data-exercise="${exerciseIndex}" data-set="0">
+                                    </div>
+                                ` : ''}
+                            </div>
                         </div>
-                    ` : ''}
-                    ${hasTime ? `
-                        <div>
-                            <label>Temps (min)</label>
-                            <input type="number" class="goal-time" min="0" step="0.1" value="${timeVal}">
-                        </div>
-                    ` : ''}
-                    ${hasWeight ? `
-                        <div>
-                            <label>Poids (kg)</label>
-                            <input type="number" class="goal-weight" min="0" step="0.1" value="${weightVal}">
-                        </div>
-                    ` : ''}
-                    ${hasDistance ? `
-                        <div>
-                            <label>Distance (km)</label>
-                            <input type="number" class="goal-distance" min="0" step="0.1" value="${distanceVal}">
-                        </div>
-                    ` : ''}
-                    ${hasCalories ? `
-                        <div>
-                            <label>Calories</label>
-                            <input type="number" class="goal-calories" min="0" step="0.1" value="${caloriesVal}">
-                        </div>
-                    ` : ''}
+                    </div>
                 </div>
                 <p style="margin-top: 8px; color: #666; font-size: 12px;">
                     ${lastResult ? 'Prérempli avec le dernier résultat.' : 'Aucun historique, champs vides.'}
@@ -1232,6 +1374,109 @@ async function renderSessionGoals(session) {
             </div>
         `;
     }).join('');
+}
+
+function addGoalSet(exerciseIndex) {
+    const container = document.querySelector(`.goal-sets-container[data-exercise-index="${exerciseIndex}"]`);
+    if (!container) return;
+    
+    const card = container.closest('.card');
+    const hasReps = card.dataset.hasReps === 'true';
+    const hasTime = card.dataset.hasTime === 'true';
+    const hasWeight = card.dataset.hasWeight === 'true';
+    const hasDistance = card.dataset.hasDistance === 'true';
+    const hasCalories = card.dataset.hasCalories === 'true';
+    
+    const setCount = container.querySelectorAll('.goal-set-item').length;
+    const setIndex = setCount;
+    
+    const setItem = document.createElement('div');
+    setItem.className = 'goal-set-item';
+    setItem.style.cssText = 'border: 1px solid #ddd; border-radius: 8px; padding: 10px; background: #f9f9f9; margin-bottom: 8px;';
+    
+    setItem.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <strong>Set ${setIndex + 1}</strong>
+            <button type="button" class="btn-delete" style="padding: 4px 8px; font-size: 12px;" onclick="removeGoalSet(${exerciseIndex}, ${setIndex})">- Supprimer</button>
+        </div>
+        <div class="form-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px;">
+            ${hasReps ? `
+                <div>
+                    <label>Répétitions</label>
+                    <input type="number" class="set-reps" min="0" data-exercise="${exerciseIndex}" data-set="${setIndex}">
+                </div>
+            ` : ''}
+            ${hasTime ? `
+                <div>
+                    <label>Temps (min)</label>
+                    <input type="number" class="set-time" min="0" step="0.1" data-exercise="${exerciseIndex}" data-set="${setIndex}">
+                </div>
+            ` : ''}
+            ${hasWeight ? `
+                <div>
+                    <label>Poids (kg)</label>
+                    <input type="number" class="set-weight" min="0" step="0.1" data-exercise="${exerciseIndex}" data-set="${setIndex}">
+                </div>
+            ` : ''}
+            ${hasDistance ? `
+                <div>
+                    <label>Distance (km)</label>
+                    <input type="number" class="set-distance" min="0" step="0.1" data-exercise="${exerciseIndex}" data-set="${setIndex}">
+                </div>
+            ` : ''}
+            ${hasCalories ? `
+                <div>
+                    <label>Calories</label>
+                    <input type="number" class="set-calories" min="0" step="0.1" data-exercise="${exerciseIndex}" data-set="${setIndex}">
+                </div>
+            ` : ''}
+        </div>
+    `;
+    
+    container.appendChild(setItem);
+    updateGoalSetButtons(exerciseIndex);
+}
+
+function removeGoalSet(exerciseIndex, setIndex) {
+    const container = document.querySelector(`.goal-sets-container[data-exercise-index="${exerciseIndex}"]`);
+    if (!container) return;
+    
+    const setItems = container.querySelectorAll('.goal-set-item');
+    if (setItems.length <= 1) {
+        alert('Vous devez avoir au moins un set');
+        return;
+    }
+    
+    setItems[setIndex]?.remove();
+    
+    // Renumber sets
+    const remainingSets = container.querySelectorAll('.goal-set-item');
+    remainingSets.forEach((item, index) => {
+        item.querySelector('strong').textContent = `Set ${index + 1}`;
+        const btn = item.querySelector('.btn-delete');
+        if (btn) {
+            btn.setAttribute('onclick', `removeGoalSet(${exerciseIndex}, ${index})`);
+        }
+        // Update data-set attributes
+        item.querySelectorAll('input').forEach(input => {
+            input.dataset.set = index;
+        });
+    });
+    
+    updateGoalSetButtons(exerciseIndex);
+}
+
+function updateGoalSetButtons(exerciseIndex) {
+    const container = document.querySelector(`.goal-sets-container[data-exercise-index="${exerciseIndex}"]`);
+    if (!container) return;
+    
+    const setItems = container.querySelectorAll('.goal-set-item');
+    setItems.forEach((item, index) => {
+        const deleteBtn = item.querySelector('.btn-delete');
+        if (deleteBtn) {
+            deleteBtn.style.display = setItems.length > 1 ? 'inline-block' : 'none';
+        }
+    });
 }
 
 async function startProgramSession() {
@@ -1243,17 +1488,27 @@ async function startProgramSession() {
     }
 
     // Construire les objectifs et les enregistrer
-    const goals = cards.map(card => {
+    const goals = cards.map((card, exerciseIndex) => {
         const sessionExerciseId = parseInt(card.dataset.sessionExerciseId, 10);
+        const setsContainer = card.querySelector(`.goal-sets-container[data-exercise-index="${exerciseIndex}"]`);
+        const setItems = setsContainer ? Array.from(setsContainer.querySelectorAll('.goal-set-item')) : [];
+        
+        // Collecter les données de chaque set
+        const sets = setItems.map((setItem, setIndex) => {
+            return {
+                repetitions: parseInt(setItem.querySelector('.set-reps')?.value || '', 10) || null,
+                time_minutes: parseFloat(setItem.querySelector('.set-time')?.value || '') || null,
+                weight_kg: parseFloat(setItem.querySelector('.set-weight')?.value || '') || null,
+                distance_km: parseFloat(setItem.querySelector('.set-distance')?.value || '') || null,
+                calories: parseFloat(setItem.querySelector('.set-calories')?.value || '') || null
+            };
+        });
+        
         return {
             session_exercise_id: sessionExerciseId,
             session_id: activeProgramSessionId,
-            sets_count: parseInt(card.querySelector('.goal-sets')?.value || '', 10) || null,
-            repetitions: parseInt(card.querySelector('.goal-reps')?.value || '', 10) || null,
-            time_minutes: parseFloat(card.querySelector('.goal-time')?.value || '') || null,
-            weight_kg: parseFloat(card.querySelector('.goal-weight')?.value || '') || null,
-            distance_km: parseFloat(card.querySelector('.goal-distance')?.value || '') || null,
-            calories: parseFloat(card.querySelector('.goal-calories')?.value || '') || null,
+            sets_count: sets.length,
+            sets_data: sets,
             exercise_name: card.dataset.exerciseName || 'Exercice',
             has_reps: card.dataset.hasReps === 'true',
             has_time: card.dataset.hasTime === 'true',
@@ -1315,13 +1570,25 @@ function renderRunnerExercise() {
 
     document.getElementById('runnerExerciseTitle').textContent = current.exercise_name || 'Exercice';
 
+    // Afficher les objectifs de tous les sets
     const objectiveParts = [];
     if (current.sets_count) objectiveParts.push(`${current.sets_count} sets`);
-    if (current.repetitions) objectiveParts.push(`${current.repetitions} reps/set`);
-    if (current.time_minutes) objectiveParts.push(`${current.time_minutes} min`);
-    if (current.weight_kg) objectiveParts.push(`${current.weight_kg} kg`);
-    if (current.distance_km) objectiveParts.push(`${current.distance_km} km`);
-    if (current.calories) objectiveParts.push(`${current.calories} cal`);
+    
+    if (current.sets_data && current.sets_data.length > 0) {
+        const setDetails = current.sets_data.map((set, idx) => {
+            const details = [];
+            if (set.repetitions) details.push(`${set.repetitions} reps`);
+            if (set.time_minutes) details.push(`${set.time_minutes} min`);
+            if (set.weight_kg) details.push(`${set.weight_kg} kg`);
+            if (set.distance_km) details.push(`${set.distance_km} km`);
+            if (set.calories) details.push(`${set.calories} cal`);
+            return details.length > 0 ? `Set ${idx + 1}: ${details.join(', ')}` : null;
+        }).filter(Boolean);
+        
+        if (setDetails.length > 0) {
+            objectiveParts.push(...setDetails);
+        }
+    }
 
     document.getElementById('runnerObjective').textContent = objectiveParts.length
         ? `Objectif: ${objectiveParts.join(' • ')}`
