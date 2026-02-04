@@ -112,9 +112,18 @@
                 </div>
                 <div id="runnerObjective" style="margin-bottom:16px; font-size:14px; color:#555;"></div>
                 <div id="runnerActualForm" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-bottom:16px;"></div>
-                <div style="display:flex; gap:8px;">
+                <div id="runnerActionButtons" style="display:flex; gap:8px;">
                     <button class="btn-primary" id="runnerValidateGoal">✅ J’ai atteint l’objectif</button>
                     <button class="btn-secondary" id="runnerSaveActual">📝 Enregistrer mon résultat</button>
+                </div>
+                <div id="runnerRestSection" style="display:none; margin-top:16px; padding:12px; border:1px solid #eee; border-radius:8px; background:#f9f9f9;">
+                    <div style="font-weight:600; margin-bottom:8px;">Pause avant le prochain exercice</div>
+                    <div id="runnerRestCountdown" style="font-size:20px; margin-bottom:8px;">00:00</div>
+                    <div style="display:flex; gap:8px;">
+                        <button class="btn-primary" id="runnerSkipRest">⏭ Passer maintenant</button>
+                        <button class="btn-secondary" id="runnerAddRest">+15 sec</button>
+                        <button class="btn-secondary" id="runnerRemoveRest">-15 sec</button>
+                    </div>
                 </div>
             </div>
         </div>

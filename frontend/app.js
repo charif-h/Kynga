@@ -143,6 +143,21 @@ function setupEventListeners() {
     if (runnerSaveBtn) {
         runnerSaveBtn.addEventListener('click', () => submitProgramSessionResult(false));
     }
+
+    const runnerSkipRestBtn = document.getElementById('runnerSkipRest');
+    if (runnerSkipRestBtn) {
+        runnerSkipRestBtn.addEventListener('click', skipRestAndNextExercise);
+    }
+
+    const runnerAddRestBtn = document.getElementById('runnerAddRest');
+    if (runnerAddRestBtn) {
+        runnerAddRestBtn.addEventListener('click', () => addRestSeconds(15));
+    }
+
+    const runnerRemoveRestBtn = document.getElementById('runnerRemoveRest');
+    if (runnerRemoveRestBtn) {
+        runnerRemoveRestBtn.addEventListener('click', () => addRestSeconds(-15));
+    }
     
     // Set Form listeners
     document.getElementById('setForm').addEventListener('submit', handleSetFormSubmit);
@@ -1090,6 +1105,8 @@ function displayProgramProgress(program, progressList) {
 let activeProgramSessionId = null;
 let activeProgramSessionExercises = [];
 let activeProgramSessionIndex = 0;
+let restTimerInterval = null;
+let restRemainingSeconds = 0;
 
 async function openProgramSession(sessionId, sessionName) {
     activeProgramSessionId = sessionId;
@@ -1282,6 +1299,8 @@ function openProgramSessionRunner() {
 function closeProgramSessionRunner() {
     const runner = document.getElementById('programSessionRunner');
     runner.style.display = 'none';
+    clearRestTimer();
+    hideRestUI();
 }
 
 function renderRunnerExercise() {
@@ -1291,6 +1310,8 @@ function renderRunnerExercise() {
         alert('Session terminée');
         return;
     }
+
+    hideRestUI();
 
     document.getElementById('runnerExerciseTitle').textContent = current.exercise_name || 'Exercice';
 
@@ -1388,17 +1409,120 @@ async function submitProgramSessionResult(useGoalValues) {
         }
 
         activeProgramSessionIndex += 1;
-        
+
         // If all exercises completed, record session performance
         if (activeProgramSessionIndex >= activeProgramSessionExercises.length) {
             await completeSession();
-        } else {
-            renderRunnerExercise();
+            return;
         }
+
+        await startRestAfterExercise(current.session_exercise_id);
     } catch (error) {
         console.error('Erreur enregistrement résultat:', error);
         alert('Erreur lors de l\'enregistrement du résultat');
     }
+}
+
+function formatSeconds(seconds) {
+    const safeSeconds = Math.max(0, seconds || 0);
+    const minutes = Math.floor(safeSeconds / 60);
+    const remaining = safeSeconds % 60;
+    return `${String(minutes).padStart(2, '0')}:${String(remaining).padStart(2, '0')}`;
+}
+
+function updateRestCountdownDisplay() {
+    const countdown = document.getElementById('runnerRestCountdown');
+    if (countdown) {
+        countdown.textContent = formatSeconds(restRemainingSeconds);
+    }
+}
+
+function showRestUI(seconds) {
+    restRemainingSeconds = seconds;
+    const restSection = document.getElementById('runnerRestSection');
+    const form = document.getElementById('runnerActualForm');
+    const actionButtons = document.getElementById('runnerActionButtons');
+
+    if (restSection) restSection.style.display = 'block';
+    if (form) form.style.display = 'none';
+    if (actionButtons) actionButtons.style.display = 'none';
+
+    updateRestCountdownDisplay();
+}
+
+function hideRestUI() {
+    const restSection = document.getElementById('runnerRestSection');
+    const form = document.getElementById('runnerActualForm');
+    const actionButtons = document.getElementById('runnerActionButtons');
+
+    if (restSection) restSection.style.display = 'none';
+    if (form) form.style.display = 'grid';
+    if (actionButtons) actionButtons.style.display = 'flex';
+}
+
+function clearRestTimer() {
+    if (restTimerInterval) {
+        clearInterval(restTimerInterval);
+        restTimerInterval = null;
+    }
+    restRemainingSeconds = 0;
+}
+
+function startRestCountdown(seconds) {
+    clearRestTimer();
+    showRestUI(seconds);
+
+    restTimerInterval = setInterval(() => {
+        restRemainingSeconds -= 1;
+        if (restRemainingSeconds <= 0) {
+            clearRestTimer();
+            hideRestUI();
+            renderRunnerExercise();
+            return;
+        }
+        updateRestCountdownDisplay();
+    }, 1000);
+}
+
+function addRestSeconds(extraSeconds) {
+    if (!restTimerInterval) return;
+    restRemainingSeconds = Math.max(0, restRemainingSeconds + extraSeconds);
+    updateRestCountdownDisplay();
+}
+
+function skipRestAndNextExercise() {
+    clearRestTimer();
+    hideRestUI();
+    renderRunnerExercise();
+}
+
+async function startRestAfterExercise(sessionExerciseId) {
+    try {
+        const response = await fetch(`${API_URL}/performance/rest-timer`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${getToken()}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                session_exercise_id: sessionExerciseId,
+                between_sets: false
+            })
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            const restSeconds = parseInt(data.rest_duration_seconds, 10) || 0;
+            if (restSeconds > 0) {
+                startRestCountdown(restSeconds);
+                return;
+            }
+        }
+    } catch (error) {
+        console.warn('Erreur rest-timer, passage au suivant:', error);
+    }
+
+    renderRunnerExercise();
 }
 
 async function completeSession() {
