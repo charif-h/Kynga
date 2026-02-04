@@ -9,6 +9,7 @@ let isLoginMode = true;
 let editingExerciseId = null;
 let editingSessionId = null;
 let editingProgramId = null;
+let currentProgramId = null;
 let currentExerciseMedia = [];
 let currentSets = [];
 let addingExerciseToSession = null;
@@ -115,6 +116,33 @@ function setupEventListeners() {
     
     // Add session to program
     document.getElementById('addSessionToProgram').addEventListener('click', addSessionToProgramForm);
+
+    // Back to programs
+    const backToPrograms = document.getElementById('backToPrograms');
+    if (backToPrograms) {
+        backToPrograms.addEventListener('click', () => switchPage('programs'));
+    }
+
+    // Start session from program page
+    const startProgramSessionBtn = document.getElementById('startProgramSession');
+    if (startProgramSessionBtn) {
+        startProgramSessionBtn.addEventListener('click', startProgramSession);
+    }
+
+    const exitRunnerBtn = document.getElementById('exitRunner');
+    if (exitRunnerBtn) {
+        exitRunnerBtn.addEventListener('click', closeProgramSessionRunner);
+    }
+
+    const runnerValidateBtn = document.getElementById('runnerValidateGoal');
+    if (runnerValidateBtn) {
+        runnerValidateBtn.addEventListener('click', () => submitProgramSessionResult(true));
+    }
+
+    const runnerSaveBtn = document.getElementById('runnerSaveActual');
+    if (runnerSaveBtn) {
+        runnerSaveBtn.addEventListener('click', () => submitProgramSessionResult(false));
+    }
     
     // Set Form listeners
     document.getElementById('setForm').addEventListener('submit', handleSetFormSubmit);
@@ -283,6 +311,11 @@ function switchPage(pageName) {
     
     document.getElementById(`${pageName}Page`).classList.add('active');
     document.querySelector(`[data-page="${pageName}"]`).classList.add('active');
+
+    const programDetail = document.getElementById('programSessionDetail');
+    if (programDetail) {
+        programDetail.style.display = 'none';
+    }
 
     if (pageName === 'exercises') {
         loadExercises();
@@ -984,12 +1017,469 @@ function displayPrograms() {
                 <small>${program.sessions.length} session(s)</small>
             </div>
             <div class="item-actions">
+                <button class="btn-icon" onclick="showProgramDetail(${program.id})" title="Voir">👁️</button>
                 <button class="btn-icon" onclick="editProgram(${program.id})" title="Modifier">✏️</button>
                 <button class="btn-icon" onclick="deleteProgram(${program.id})" title="Supprimer">🗑️</button>
             </div>
         `;
         list.appendChild(div);
     });
+}
+
+function showProgramDetail(programId) {
+    currentProgramId = programId;
+    document.querySelectorAll('.page').forEach(page => page.classList.remove('active'));
+    document.getElementById('programDetailPage').classList.add('active');
+    document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+    const programsBtn = document.querySelector('[data-page="programs"]');
+    if (programsBtn) {
+        programsBtn.classList.add('active');
+    }
+    loadProgramProgress(programId);
+}
+
+async function loadProgramProgress(programId) {
+    try {
+        const [programResponse, progressResponse] = await Promise.all([
+            fetch(`${API_URL}/programs/${programId}`, {
+                headers: { 'Authorization': `Bearer ${getToken()}` }
+            }),
+            fetch(`${API_URL}/programs/${programId}/progress`, {
+                headers: { 'Authorization': `Bearer ${getToken()}` }
+            })
+        ]);
+
+        if (!programResponse.ok || !progressResponse.ok) {
+            alert('Erreur lors du chargement du programme');
+            return;
+        }
+
+        const program = await programResponse.json();
+        const progress = await progressResponse.json();
+        displayProgramProgress(program, progress);
+    } catch (error) {
+        console.error('Erreur lors du chargement du programme:', error);
+        alert('Erreur lors du chargement du programme');
+    }
+}
+
+function displayProgramProgress(program, progressList) {
+    document.getElementById('programDetailTitle').textContent = program.name || 'Détails du programme';
+    document.getElementById('programDetailDescription').textContent = program.description || '';
+
+    const container = document.getElementById('programSessionsProgress');
+    if (!progressList || progressList.length === 0) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <h3>Aucune session dans ce programme</h3>
+                <p>Ajoutez des sessions à ce programme pour suivre vos accomplissements.</p>
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = progressList.map((item, index) => `
+        <div class="card">
+            <h3>${index + 1}. ${item.session_name || 'Session sans nom'}</h3>
+            <p><strong>Accomplie:</strong> ${item.completed_count} fois</p>
+            <button class="btn-secondary" style="margin-top: 8px;" onclick="openProgramSession(${item.session_id}, '${(item.session_name || '').replace(/'/g, "\\'")}')">Voir la session</button>
+        </div>
+    `).join('');
+}
+
+let activeProgramSessionId = null;
+let activeProgramSessionExercises = [];
+let activeProgramSessionIndex = 0;
+
+async function openProgramSession(sessionId, sessionName) {
+    activeProgramSessionId = sessionId;
+    const detailSection = document.getElementById('programSessionDetail');
+    const title = document.getElementById('programSessionDetailTitle');
+    title.textContent = sessionName ? `Session: ${sessionName}` : 'Session';
+    detailSection.style.display = 'block';
+
+    try {
+        const sessionResponse = await fetch(`${API_URL}/sessions/${sessionId}`, {
+            headers: { 'Authorization': `Bearer ${getToken()}` }
+        });
+
+        if (!sessionResponse.ok) {
+            alert('Erreur lors du chargement de la session');
+            return;
+        }
+
+        const session = await sessionResponse.json();
+        await renderSessionGoals(session);
+    } catch (error) {
+        console.error('Erreur chargement session:', error);
+        alert('Erreur lors du chargement de la session');
+    }
+}
+
+async function renderSessionGoals(session) {
+    const container = document.getElementById('programSessionExercises');
+    container.innerHTML = '';
+
+    if (!session.exercises || session.exercises.length === 0) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <h3>Aucun exercice</h3>
+                <p>Cette session ne contient pas d'exercices.</p>
+            </div>
+        `;
+        return;
+    }
+
+    const exerciseDetails = await Promise.all(session.exercises.map(async (se) => {
+        const [exerciseRes, historyRes] = await Promise.all([
+            fetch(`${API_URL}/exercises/${se.exercise_id}`),
+            fetch(`${API_URL}/performance/history/${se.exercise_id}?days=365`, {
+                headers: { 'Authorization': `Bearer ${getToken()}` }
+            })
+        ]);
+
+        const exercise = exerciseRes.ok ? await exerciseRes.json() : null;
+        const history = historyRes.ok ? await historyRes.json() : null;
+        const last = history?.recent_results?.[0] || null;
+
+        return { sessionExercise: se, exercise, lastResult: last };
+    }));
+
+    container.innerHTML = exerciseDetails.map(({ sessionExercise, exercise, lastResult }) => {
+        const name = sessionExercise.exercise_name || exercise?.name || 'Exercice';
+        const hasReps = !!exercise?.has_repetitions;
+        const hasTime = !!exercise?.has_time;
+        const hasWeight = !!exercise?.has_weight;
+        const hasDistance = !!exercise?.has_distance;
+        const hasCalories = !!exercise?.has_calories;
+
+        const setsVal = lastResult?.sets_completed ?? '';
+        const repsVal = lastResult?.repetitions ?? '';
+        const timeVal = lastResult?.time_minutes ?? '';
+        const weightVal = lastResult?.weight_kg ?? '';
+        const distanceVal = lastResult?.distance_km ?? '';
+        const caloriesVal = lastResult?.calories ?? '';
+
+        const safeName = String(name).replace(/"/g, '&quot;');
+
+        return `
+            <div class="card" 
+                data-session-exercise-id="${sessionExercise.id}"
+                data-exercise-name="${safeName}"
+                data-has-reps="${hasReps}"
+                data-has-time="${hasTime}"
+                data-has-weight="${hasWeight}"
+                data-has-distance="${hasDistance}"
+                data-has-calories="${hasCalories}">
+                <h3>${name}</h3>
+                <input type="hidden" class="goal-session-exercise" value="${sessionExercise.id}">
+                <div class="form-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px;">
+                    <div>
+                        <label>Nombre de sets</label>
+                        <input type="number" class="goal-sets" min="0" value="${setsVal}">
+                    </div>
+                    ${hasReps ? `
+                        <div>
+                            <label>Répétitions / set</label>
+                            <input type="number" class="goal-reps" min="0" value="${repsVal}">
+                        </div>
+                    ` : ''}
+                    ${hasTime ? `
+                        <div>
+                            <label>Temps (min)</label>
+                            <input type="number" class="goal-time" min="0" step="0.1" value="${timeVal}">
+                        </div>
+                    ` : ''}
+                    ${hasWeight ? `
+                        <div>
+                            <label>Poids (kg)</label>
+                            <input type="number" class="goal-weight" min="0" step="0.1" value="${weightVal}">
+                        </div>
+                    ` : ''}
+                    ${hasDistance ? `
+                        <div>
+                            <label>Distance (km)</label>
+                            <input type="number" class="goal-distance" min="0" step="0.1" value="${distanceVal}">
+                        </div>
+                    ` : ''}
+                    ${hasCalories ? `
+                        <div>
+                            <label>Calories</label>
+                            <input type="number" class="goal-calories" min="0" step="0.1" value="${caloriesVal}">
+                        </div>
+                    ` : ''}
+                </div>
+                <p style="margin-top: 8px; color: #666; font-size: 12px;">
+                    ${lastResult ? 'Prérempli avec le dernier résultat.' : 'Aucun historique, champs vides.'}
+                </p>
+            </div>
+        `;
+    }).join('');
+}
+
+async function startProgramSession() {
+    const container = document.getElementById('programSessionExercises');
+    const cards = Array.from(container.querySelectorAll('.card'));
+    if (!cards.length) {
+        alert('Aucun exercice à démarrer');
+        return;
+    }
+
+    // Construire les objectifs et les enregistrer
+    const goals = cards.map(card => {
+        const sessionExerciseId = parseInt(card.dataset.sessionExerciseId, 10);
+        return {
+            session_exercise_id: sessionExerciseId,
+            session_id: activeProgramSessionId,
+            sets_count: parseInt(card.querySelector('.goal-sets')?.value || '', 10) || null,
+            repetitions: parseInt(card.querySelector('.goal-reps')?.value || '', 10) || null,
+            time_minutes: parseFloat(card.querySelector('.goal-time')?.value || '') || null,
+            weight_kg: parseFloat(card.querySelector('.goal-weight')?.value || '') || null,
+            distance_km: parseFloat(card.querySelector('.goal-distance')?.value || '') || null,
+            calories: parseFloat(card.querySelector('.goal-calories')?.value || '') || null,
+            exercise_name: card.dataset.exerciseName || 'Exercice',
+            has_reps: card.dataset.hasReps === 'true',
+            has_time: card.dataset.hasTime === 'true',
+            has_weight: card.dataset.hasWeight === 'true',
+            has_distance: card.dataset.hasDistance === 'true',
+            has_calories: card.dataset.hasCalories === 'true'
+        };
+    });
+
+    try {
+        await Promise.all(goals.map(g => fetch(`${API_URL}/performance/goals`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${getToken()}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                session_exercise_id: g.session_exercise_id,
+                sets_count: g.sets_count,
+                repetitions: g.repetitions,
+                time_minutes: g.time_minutes,
+                weight_kg: g.weight_kg,
+                distance_km: g.distance_km,
+                calories: g.calories
+            })
+        })));
+
+        activeProgramSessionExercises = goals;
+        activeProgramSessionIndex = 0;
+        openProgramSessionRunner();
+    } catch (error) {
+        console.error('Erreur démarrage session:', error);
+        alert('Erreur lors du démarrage de la session');
+    }
+}
+
+function openProgramSessionRunner() {
+    const runner = document.getElementById('programSessionRunner');
+    runner.style.display = 'block';
+    renderRunnerExercise();
+}
+
+function closeProgramSessionRunner() {
+    const runner = document.getElementById('programSessionRunner');
+    runner.style.display = 'none';
+}
+
+function renderRunnerExercise() {
+    const current = activeProgramSessionExercises[activeProgramSessionIndex];
+    if (!current) {
+        closeProgramSessionRunner();
+        alert('Session terminée');
+        return;
+    }
+
+    document.getElementById('runnerExerciseTitle').textContent = current.exercise_name || 'Exercice';
+
+    const objectiveParts = [];
+    if (current.sets_count) objectiveParts.push(`${current.sets_count} sets`);
+    if (current.repetitions) objectiveParts.push(`${current.repetitions} reps/set`);
+    if (current.time_minutes) objectiveParts.push(`${current.time_minutes} min`);
+    if (current.weight_kg) objectiveParts.push(`${current.weight_kg} kg`);
+    if (current.distance_km) objectiveParts.push(`${current.distance_km} km`);
+    if (current.calories) objectiveParts.push(`${current.calories} cal`);
+
+    document.getElementById('runnerObjective').textContent = objectiveParts.length
+        ? `Objectif: ${objectiveParts.join(' • ')}`
+        : 'Aucun objectif défini';
+
+    const form = document.getElementById('runnerActualForm');
+    form.innerHTML = '';
+
+    form.innerHTML += `
+        <div>
+            <label>Nombre de sets</label>
+            <input type="number" id="actualSets" min="0" value="${current.sets_count ?? ''}">
+        </div>
+    `;
+
+    if (current.has_reps) {
+        form.innerHTML += `
+            <div>
+                <label>Répétitions / set</label>
+                <input type="number" id="actualReps" min="0" value="${current.repetitions ?? ''}">
+            </div>
+        `;
+    }
+    if (current.has_time) {
+        form.innerHTML += `
+            <div>
+                <label>Temps (min)</label>
+                <input type="number" id="actualTime" min="0" step="0.1" value="${current.time_minutes ?? ''}">
+            </div>
+        `;
+    }
+    if (current.has_weight) {
+        form.innerHTML += `
+            <div>
+                <label>Poids (kg)</label>
+                <input type="number" id="actualWeight" min="0" step="0.1" value="${current.weight_kg ?? ''}">
+            </div>
+        `;
+    }
+    if (current.has_distance) {
+        form.innerHTML += `
+            <div>
+                <label>Distance (km)</label>
+                <input type="number" id="actualDistance" min="0" step="0.1" value="${current.distance_km ?? ''}">
+            </div>
+        `;
+    }
+    if (current.has_calories) {
+        form.innerHTML += `
+            <div>
+                <label>Calories</label>
+                <input type="number" id="actualCalories" min="0" step="0.1" value="${current.calories ?? ''}">
+            </div>
+        `;
+    }
+}
+
+async function submitProgramSessionResult(useGoalValues) {
+    const current = activeProgramSessionExercises[activeProgramSessionIndex];
+    if (!current) return;
+
+    const payload = {
+        session_exercise_id: current.session_exercise_id,
+        sets_completed: useGoalValues ? current.sets_count : parseInt(document.getElementById('actualSets')?.value || '', 10) || null,
+        repetitions: current.has_reps ? (useGoalValues ? current.repetitions : parseInt(document.getElementById('actualReps')?.value || '', 10) || null) : null,
+        time_minutes: current.has_time ? (useGoalValues ? current.time_minutes : parseFloat(document.getElementById('actualTime')?.value || '') || null) : null,
+        weight_kg: current.has_weight ? (useGoalValues ? current.weight_kg : parseFloat(document.getElementById('actualWeight')?.value || '') || null) : null,
+        distance_km: current.has_distance ? (useGoalValues ? current.distance_km : parseFloat(document.getElementById('actualDistance')?.value || '') || null) : null,
+        calories: current.has_calories ? (useGoalValues ? current.calories : parseFloat(document.getElementById('actualCalories')?.value || '') || null) : null
+    };
+
+    try {
+        const response = await fetch(`${API_URL}/performance/results`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${getToken()}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+            alert('Erreur lors de l\'enregistrement du résultat');
+            return;
+        }
+
+        activeProgramSessionIndex += 1;
+        
+        // If all exercises completed, record session performance
+        if (activeProgramSessionIndex >= activeProgramSessionExercises.length) {
+            await completeSession();
+        } else {
+            renderRunnerExercise();
+        }
+    } catch (error) {
+        console.error('Erreur enregistrement résultat:', error);
+        alert('Erreur lors de l\'enregistrement du résultat');
+    }
+}
+
+async function completeSession() {
+    const sessionId = activeProgramSessionExercises[0]?.session_id;
+    if (!sessionId) return;
+
+    try {
+        const sessionPerformance = {
+            session_id: sessionId,
+            exercises_completed: activeProgramSessionExercises.length,
+            exercises_planned: activeProgramSessionExercises.length,
+            goals_achieved: 0, // Could track this if needed
+            total_duration_minutes: null,
+            notes: null
+        };
+
+        const response = await fetch(`${API_URL}/performance`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${getToken()}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(sessionPerformance)
+        });
+
+        if (response.ok) {
+            closeProgramSessionRunner();
+            alert('✅ Session terminée et enregistrée !');
+            // Reload program detail to refresh completion count
+            if (currentProgramId) {
+                showProgramDetail(currentProgramId);
+            }
+        } else {
+            alert('Session terminée mais erreur lors de l\'enregistrement');
+            closeProgramSessionRunner();
+        }
+    } catch (error) {
+        console.error('Erreur enregistrement session:', error);
+        alert('Session terminée mais erreur lors de l\'enregistrement');
+        closeProgramSessionRunner();
+    }
+}
+
+async function saveSessionGoals() {
+    const container = document.getElementById('programSessionExercises');
+    const cards = container.querySelectorAll('.card');
+    if (!cards.length) {
+        alert('Aucun exercice à enregistrer');
+        return;
+    }
+
+    try {
+        for (const card of cards) {
+            const sessionExerciseId = card.querySelector('.goal-session-exercise')?.value;
+            if (!sessionExerciseId) continue;
+
+            const payload = {
+                session_exercise_id: parseInt(sessionExerciseId, 10),
+                sets_count: parseInt(card.querySelector('.goal-sets')?.value || '', 10) || null,
+                repetitions: parseInt(card.querySelector('.goal-reps')?.value || '', 10) || null,
+                time_minutes: parseFloat(card.querySelector('.goal-time')?.value || '') || null,
+                weight_kg: parseFloat(card.querySelector('.goal-weight')?.value || '') || null,
+                distance_km: parseFloat(card.querySelector('.goal-distance')?.value || '') || null,
+                calories: parseFloat(card.querySelector('.goal-calories')?.value || '') || null
+            };
+
+            await fetch(`${API_URL}/performance/goals`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${getToken()}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            });
+        }
+
+        alert('Objectifs enregistrés');
+    } catch (error) {
+        console.error('Erreur sauvegarde objectifs:', error);
+        alert('Erreur lors de l\'enregistrement des objectifs');
+    }
 }
 
 function openProgramModal(program = null) {

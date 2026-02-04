@@ -85,6 +85,39 @@
             </div>
             <div id="programsList" class="cards-grid"></div>
         </div>
+
+        <!-- Program Detail Page -->
+        <div id="programDetailPage" class="page">
+            <div class="page-header" style="justify-content: space-between; align-items: center;">
+                <div>
+                    <h2 id="programDetailTitle">Détails du programme</h2>
+                    <p id="programDetailDescription" style="margin-top: 6px; color: #666;"></p>
+                </div>
+                <button class="btn-secondary" id="backToPrograms">← Retour</button>
+            </div>
+            <div id="programSessionsProgress" class="cards-grid"></div>
+
+            <div id="programSessionDetail" style="margin-top: 24px; display: none;">
+                <div class="page-header" style="justify-content: space-between; align-items: center;">
+                    <h3 id="programSessionDetailTitle">Session</h3>
+                    <button class="btn-primary" id="startProgramSession">▶ Démarrer la session</button>
+                </div>
+                <div id="programSessionExercises" class="cards-grid"></div>
+            </div>
+
+            <div id="programSessionRunner" style="display:none; position:fixed; inset:0; background:#fff; z-index:10000; padding:24px; overflow:auto;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+                    <h2 id="runnerExerciseTitle">Exercice</h2>
+                    <button class="btn-secondary" id="exitRunner">✕ Quitter</button>
+                </div>
+                <div id="runnerObjective" style="margin-bottom:16px; font-size:14px; color:#555;"></div>
+                <div id="runnerActualForm" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-bottom:16px;"></div>
+                <div style="display:flex; gap:8px;">
+                    <button class="btn-primary" id="runnerValidateGoal">✅ J’ai atteint l’objectif</button>
+                    <button class="btn-secondary" id="runnerSaveActual">📝 Enregistrer mon résultat</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Exercise Modal -->

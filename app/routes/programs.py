@@ -2,12 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import List
 from app.database import get_db
-from app.models import Program, ProgramSession, WorkoutSession, User
+from app.models import Program, ProgramSession, WorkoutSession, User, SessionPerformance
 from app.schemas import (
     ProgramCreate,
     ProgramUpdate,
     ProgramResponse,
-    ProgramSessionResponse
+    ProgramSessionResponse,
+    ProgramSessionProgress
 )
 from app.auth import get_current_active_user
 
@@ -154,3 +155,42 @@ def delete_program(
 
     db.delete(db_program)
     db.commit()
+
+@router.get("/{program_id}/progress", response_model=List[ProgramSessionProgress])
+def get_program_progress(
+    program_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Return sessions in a program with completion counts"""
+    db_program = db.query(Program).filter(
+        Program.id == program_id,
+        Program.user_id == current_user.id
+    ).first()
+
+    if not db_program:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Program not found"
+        )
+
+    program_sessions = db.query(ProgramSession).filter(
+        ProgramSession.program_id == db_program.id
+    ).order_by(ProgramSession.order_index, ProgramSession.id).all()
+
+    progress = []
+    for ps in program_sessions:
+        session = db.query(WorkoutSession).filter(WorkoutSession.id == ps.session_id).first()
+        completed_count = db.query(SessionPerformance).filter(
+            SessionPerformance.session_id == ps.session_id,
+            SessionPerformance.user_id == current_user.id
+        ).count()
+
+        progress.append(ProgramSessionProgress(
+            session_id=ps.session_id,
+            session_name=session.name if session else None,
+            order_index=ps.order_index,
+            completed_count=completed_count
+        ))
+
+    return progress

@@ -299,6 +299,7 @@ def delete_exercise_result(
 
 # ============== SESSION PERFORMANCE ENDPOINTS ==============
 
+@router.post("", response_model=SessionPerformanceResponse, status_code=status.HTTP_201_CREATED)
 @router.post("/performance", response_model=SessionPerformanceResponse, status_code=status.HTTP_201_CREATED)
 def record_session_performance(
     performance: SessionPerformanceCreate,

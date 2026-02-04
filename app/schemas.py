@@ -165,6 +165,12 @@ class ProgramSessionResponse(ProgramSessionBase):
     class Config:
         from_attributes = True
 
+class ProgramSessionProgress(BaseModel):
+    session_id: int
+    session_name: Optional[str] = None
+    order_index: int
+    completed_count: int
+
 class ProgramBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     description: Optional[str] = None
