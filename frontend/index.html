@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kynga - Sports Management</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Login/Register Modal -->
+    <div id="authModal" class="modal">
+        <div class="modal-content">
+            <h2 id="authTitle">Connexion</h2>
+            <form id="authForm">
+                <div id="nameField" style="display: none;">
+                    <label for="name">Nom complet</label>
+                    <input type="text" id="name" placeholder="Votre nom">
+                </div>
+                <div>
+                    <label for="email">Email</label>
+                    <input type="email" id="email" placeholder="votre@email.com" required>
+                </div>
+                <div>
+                    <label for="password">Mot de passe</label>
+                    <input type="password" id="password" placeholder="********" required>
+                </div>
+                <button type="submit" id="authSubmit">Se connecter</button>
+                <p class="toggle-auth">
+                    <span id="toggleText">Pas encore de compte ?</span>
+                    <a href="#" id="toggleAuth">S'inscrire</a>
+                </p>
+            </form>
+        </div>
+    </div>
+
+    <!-- Main App -->
+    <div id="app" style="display: none;">
+        <!-- Navigation -->
+        <nav class="navbar">
+            <div class="nav-brand">
+                <h1>Kynga</h1>
+            </div>
+            <div class="nav-menu">
+                <a href="training.html" class="nav-btn" style="text-decoration:none; background:#667eea; color:white; padding:8px 16px; border-radius:4px;">🏋️ Démarrer une session</a>
+                <button class="nav-btn active" data-page="exercises">Exercices</button>
+                <button class="nav-btn" data-page="sessions">Mes Sessions</button>
+                <button class="nav-btn" data-page="programs">Mes Programmes</button>
+                <button class="nav-btn logout-btn">Déconnexion</button>
+            </div>
+        </nav>
+
+        <!-- Exercises Page -->
+        <div id="exercisesPage" class="page active">
+            <div class="page-header">
+                <h2>Bibliothèque d'Exercices</h2>
+                <button class="btn-primary" id="addExerciseBtn">+ Ajouter un exercice</button>
+            </div>
+            <div class="filters">
+                <input type="text" id="searchExercises" placeholder="Rechercher un exercice...">
+                <select id="categoryFilter">
+                    <option value="">Toutes les catégories</option>
+                    <option value="musculation">Musculation</option>
+                    <option value="cardio">Cardio</option>
+                    <option value="yoga">Yoga</option>
+                    <option value="stretching">Stretching</option>
+                </select>
+            </div>
+            <div id="exercisesList" class="cards-grid"></div>
+        </div>
+
+        <!-- Sessions Page -->
+        <div id="sessionsPage" class="page">
+            <div class="page-header">
+                <h2>Mes Sessions d'Entraînement</h2>
+                <button class="btn-primary" id="addSessionBtn">+ Créer une session</button>
+            </div>
+            <div id="sessionsList" class="cards-grid"></div>
+        </div>
+
+        <!-- Programs Page -->
+        <div id="programsPage" class="page">
+            <div class="page-header">
+                <h2>Mes Programmes</h2>
+                <button class="btn-primary" id="addProgramBtn">+ Créer un programme</button>
+            </div>
+            <div id="programsList" class="cards-grid"></div>
+        </div>
+
+        <!-- Program Detail Page -->
+        <div id="programDetailPage" class="page">
+            <div class="page-header" style="justify-content: space-between; align-items: center;">
+                <div>
+                    <h2 id="programDetailTitle">Détails du programme</h2>
+                    <p id="programDetailDescription" style="margin-top: 6px; color: #666;"></p>
+                </div>
+                <button class="btn-secondary" id="backToPrograms">← Retour</button>
+            </div>
+            <div id="programSessionsProgress" class="cards-grid"></div>
+
+            <div id="programSessionDetail" style="margin-top: 24px; display: none;">
+                <div class="page-header" style="justify-content: space-between; align-items: center;">
+                    <h3 id="programSessionDetailTitle">Session</h3>
+                    <button class="btn-primary" id="startProgramSession">▶ Démarrer la session</button>
+                </div>
+                <div id="programSessionExercises" class="cards-grid"></div>
+            </div>
+
+            <div id="programSessionRunner" style="display:none; position:fixed; inset:0; background:#fff; z-index:10000; padding:24px; overflow:auto;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+                    <h2 id="runnerExerciseTitle">Exercice</h2>
+                    <button class="btn-secondary" id="exitRunner">✕ Quitter</button>
+                </div>
+                <div id="runnerObjective" style="margin-bottom:16px; font-size:14px; color:#555;"></div>
+                <div id="runnerActualForm" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-bottom:16px;"></div>
+                <div id="runnerActionButtons" style="display:flex; gap:8px;">
+                    <button class="btn-primary" id="runnerValidateGoal">✅ J’ai atteint l’objectif</button>
+                    <button class="btn-secondary" id="runnerSaveActual">📝 Enregistrer mon résultat</button>
+                </div>
+                <div id="runnerRestSection" style="display:none; margin-top:16px; padding:12px; border:1px solid #eee; border-radius:8px; background:#f9f9f9;">
+                    <div style="font-weight:600; margin-bottom:8px;">Pause avant le prochain exercice</div>
+                    <div id="runnerRestCountdown" style="font-size:20px; margin-bottom:8px;">00:00</div>
+                    <div style="display:flex; gap:8px;">
+                        <button class="btn-primary" id="runnerSkipRest">⏭ Passer maintenant</button>
+                        <button class="btn-secondary" id="runnerAddRest">+15 sec</button>
+                        <button class="btn-secondary" id="runnerRemoveRest">-15 sec</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Exercise Modal -->
+    <div id="exerciseModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2 id="exerciseModalTitle">Ajouter un exercice</h2>
+            <form id="exerciseForm">
+                <div>
+                    <label for="exerciseName">Nom de l'exercice</label>
+                    <input type="text" id="exerciseName" required>
+                </div>
+                <div>
+                    <label for="exerciseDescription">Description</label>
+                    <textarea id="exerciseDescription" rows="4"></textarea>
+                </div>
+                <div>
+                    <label for="exerciseCategory">Catégorie</label>
+                    <select id="exerciseCategory" required>
+                        <option value="musculation">Musculation</option>
+                        <option value="cardio">Cardio</option>
+                        <option value="yoga">Yoga</option>
+                        <option value="stretching">Stretching</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="exerciseMuscles">Muscles ciblés (séparés par des virgules)</label>
+                    <input type="text" id="exerciseMuscles" placeholder="pectoraux, triceps">
+                </div>
+                <div>
+                    <label for="exerciseAccessories">Accessoires nécessaires</label>
+                    <input type="text" id="exerciseAccessories" placeholder="haltères, tapis">
+                </div>
+                <div>
+                    <label for="exerciseMovementType">Type de mouvement</label>
+                    <select id="exerciseMovementType">
+                        <option value="repeated">Mouvement répété</option>
+                        <option value="static">Statique</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Métriques applicables</label>
+                    <div style="display: flex; flex-wrap: wrap; gap: 15px; margin-top: 5px;">
+                        <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                            <input type="checkbox" id="metricTime" style="width: auto;">
+                            <span>Temps</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                            <input type="checkbox" id="metricRepetitions" style="width: auto;">
+                            <span>Répétitions</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                            <input type="checkbox" id="metricWeight" style="width: auto;">
+                            <span>Poids</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                            <input type="checkbox" id="metricDistance" style="width: auto;">
+                            <span>Distance</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                            <input type="checkbox" id="metricCalories" style="width: auto;">
+                            <span>Calories</span>
+                        </label>
+                    </div>
+                </div>
+                <div>
+                    <label for="exerciseImageUrl">URL de l'image/vidéo</label>
+                    <input type="url" id="exerciseImageUrl">
+                </div>
+                <hr style="margin: 20px 0; border: none; border-top: 1px solid #ddd;">
+                <h4>Galerie Médias</h4>
+                <div id="exerciseMediaGallery" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px; margin-bottom: 15px;"></div>
+                <div style="display: flex; gap: 10px;">
+                    <input type="file" id="exerciseMediaUpload" accept="image/*,video/*" style="flex: 1;">
+                    <button type="button" class="btn-secondary" id="uploadMediaBtn">Ajouter média</button>
+                </div>
+                <div class="modal-actions">
+                    <button type="submit" class="btn-primary">Enregistrer</button>
+                    <button type="button" class="btn-secondary cancel-btn">Annuler</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Session Modal -->
+    <div id="sessionModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2 id="sessionModalTitle">Créer une session</h2>
+            <form id="sessionForm">
+                <div>
+                    <label for="sessionName">Nom de la session</label>
+                    <input type="text" id="sessionName" required>
+                </div>
+                <div>
+                    <label for="sessionDescription">Description</label>
+                    <textarea id="sessionDescription" rows="3"></textarea>
+                </div>
+                <h3>Exercices</h3>
+                <div id="sessionExercisesList"></div>
+                <button type="button" class="btn-secondary" id="addExerciseToSession">+ Ajouter un exercice</button>
+                <div class="modal-actions">
+                    <button type="submit" class="btn-primary">Enregistrer</button>
+                    <button type="button" class="btn-secondary cancel-btn">Annuler</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Exercise to Session Modal -->
+    <div id="setFormModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Ajouter un exercice à la session</h2>
+            <form id="setForm">
+                <div>
+                    <label for="setExerciseSelect">Exercice</label>
+                    <select id="setExerciseSelect" required></select>
+                </div>
+                <div>
+                    <label for="restAfterExercise">Repos après l'exercice (min)</label>
+                    <input type="number" id="restAfterExercise" step="0.5" min="0" value="2">
+                </div>
+                <div>
+                    <label for="exerciseNotes">Notes (optionnel)</label>
+                    <textarea id="exerciseNotes" rows="2" placeholder="Instructions spécifiques..."></textarea>
+                </div>
+                <div style="margin-top: 20px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <label style="margin: 0;"><strong>Sets</strong></label>
+                        <button type="button" class="btn-secondary" id="addSetBtn" style="padding: 4px 8px; font-size: 14px;">+ Ajouter un set</button>
+                    </div>
+                    <div id="setsList" style="display: grid; gap: 10px;"></div>
+                </div>
+                <div class="modal-actions">
+                    <button type="submit" class="btn-primary">Ajouter</button>
+                    <button type="button" class="btn-secondary cancel-btn">Annuler</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Program Modal -->
+    <div id="programModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2 id="programModalTitle">Créer un programme</h2>
+            <form id="programForm">
+                <div>
+                    <label for="programName">Nom du programme</label>
+                    <input type="text" id="programName" required>
+                </div>
+                <div>
+                    <label for="programDescription">Description</label>
+                    <textarea id="programDescription" rows="3"></textarea>
+                </div>
+                <h3>Sessions</h3>
+                <div id="programSessionsList"></div>
+                <button type="button" class="btn-secondary" id="addSessionToProgram">+ Ajouter une session</button>
+                <div class="modal-actions">
+                    <button type="submit" class="btn-primary">Enregistrer</button>
+                    <button type="button" class="btn-secondary cancel-btn">Annuler</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="app.js?v=13"></script>
